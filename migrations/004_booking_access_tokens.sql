@@ -1,0 +1,1 @@
+ALTER TABLE booking_requests ADD COLUMN customer_access_token_hash TEXT;

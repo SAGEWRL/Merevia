@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#163b2f">
+    <meta name="description" content="Request an accommodation booking with Bjlive Travels and Bookings. Review your estimated stay cost before sending your request.">
+    <meta property="og:title" content="Accommodation request | Bjlive Travels and Bookings">
+    <meta name="robots" content="index, follow">
+    <title>Accommodation Request | Bjlive Travels and Bookings</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="../styles/site.css">
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script type="module" src="../scripts/site.js"></script>
+    <script type="module" src="../scripts/booking.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Main navigation">
+        <a class="brand" href="/" aria-label="Bjlive Travels & Bookings home">
+          <span class="brand-mark" aria-hidden="true">B</span>
+          <span>Bjlive <span class="brand-light">Travels & Bookings</span></span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="/">Home</a>
+          <a class="nav-link is-current" href="/booking" aria-current="page">Booking enquiry</a>
+          <a class="nav-link" href="/contact">Location & contact</a>
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Use dark theme" title="Toggle color theme"><i data-lucide="moon" aria-hidden="true"></i></button>
+        </div>
+        <button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="mobile-navigation" aria-label="Open navigation"><i data-lucide="menu" aria-hidden="true"></i></button>
+      </nav>
+      <div class="mobile-navigation" id="mobile-navigation" data-mobile-navigation hidden>
+        <a href="/">Home</a><a href="/booking" aria-current="page">Booking enquiry</a><a href="/contact">Location & contact</a>
+      </div>
+    </header>
+
+    <main class="page-width interior-main booking-main">
+      <div class="breadcrumbs"><a href="/">Home</a><span aria-hidden="true">/</span><span>Booking enquiry</span></div>
+      <section class="interior-heading">
+        <p class="eyebrow">Request a place to stay</p>
+        <h1>Plan your stay</h1>
+        <p>Choose a location, accommodation type, and dates. We’ll show an estimate before you submit your request.</p>
+      </section>
+
+      <div class="booking-layout">
+        <form class="enquiry-form" id="booking-request-form" novalidate>
+          <div class="form-topline"><span>Accommodation request</span><span class="form-step">01 <i></i> 02</span></div>
+          <div class="form-grid">
+            <label class="field" for="booking-location">
+              <span>Location <b aria-hidden="true">*</b></span>
+              <select id="booking-location" name="location" required><option value="">Choose a location</option><option>Mombasa</option><option>Diani</option><option>Malindi</option><option>Kisumu</option></select>
+              <small class="field-error" data-error-for="location"></small>
+            </label>
+            <label class="field" for="booking-type">
+              <span>Accommodation type <b aria-hidden="true">*</b></span>
+              <select id="booking-type" name="accommodationType" required><option value="">Choose an accommodation type</option></select>
+              <small class="field-error" data-error-for="accommodationType"></small>
+            </label>
+            <label class="field full-field" for="booking-property">
+              <span>Published property <small class="optional-label">Optional</small></span>
+              <select id="booking-property" name="propertyId"><option value="">No specific property yet</option></select>
+              <small class="field-error" data-error-for="propertyId"></small>
+            </label>
+            <label class="field" for="booking-check-in">
+              <span>Check-in <b aria-hidden="true">*</b></span>
+              <input id="booking-check-in" name="checkIn" type="date" required>
+              <small class="field-error" data-error-for="checkIn"></small>
+            </label>
+            <label class="field" for="booking-check-out">
+              <span>Check-out <b aria-hidden="true">*</b></span>
+              <input id="booking-check-out" name="checkOut" type="date" required>
+              <small class="field-error" data-error-for="checkOut"></small>
+            </label>
+            <label class="field" for="booking-guests">
+              <span>Guests <b aria-hidden="true">*</b></span>
+              <input id="booking-guests" name="guests" type="number" min="1" max="30" step="1" value="1" required>
+              <small class="field-error" data-error-for="guests"></small>
+            </label>
+            <label class="field" for="booking-name">
+              <span>Your name <b aria-hidden="true">*</b></span>
+              <input id="booking-name" name="customerName" type="text" autocomplete="name" maxlength="120" required>
+              <small class="field-error" data-error-for="customerName"></small>
+            </label>
+            <label class="field" for="booking-phone">
+              <span>Phone number <b aria-hidden="true">*</b></span>
+              <input id="booking-phone" name="customerPhone" type="tel" autocomplete="tel" placeholder="+254 7xx xxx xxx" required>
+              <small class="field-error" data-error-for="customerPhone"></small>
+            </label>
+            <label class="field full-field" for="booking-email">
+              <span>Email <small class="optional-label">Optional</small></span>
+              <input id="booking-email" name="customerEmail" type="email" autocomplete="email" maxlength="254">
+              <small class="field-error" data-error-for="customerEmail"></small>
+            </label>
+            <label class="field full-field" for="booking-whatsapp-number">
+              <span>Preferred WhatsApp contact</span>
+              <select id="booking-whatsapp-number" name="whatsappNumber"><option value="0735 109 066">0735 109 066</option><option value="0714 237 082">0714 237 082</option></select>
+            </label>
+          </div>
+          <p class="estimate-preview" id="estimate-preview" aria-live="polite">Select an accommodation type and dates to see a cost estimate.</p>
+          <div class="form-alert" id="booking-alert" role="alert" hidden></div>
+          <div class="form-actions">
+            <button class="button button-primary" id="review-booking-button" type="submit">Review estimate <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+            <a class="button button-quiet" href="/">Cancel</a>
+          </div>
+          <p class="privacy-note"><i data-lucide="lock-keyhole" aria-hidden="true"></i> Your request is stored so Bjlive can follow up. It is not a confirmed reservation; do not enter payment credentials here.</p>
+        </form>
+
+        <aside class="enquiry-aside">
+          <div class="aside-index">BJLIVE / ENQUIRY</div>
+          <h2>An enquiry first, not an instant booking.</h2>
+          <p>Review your estimated cost and send a booking request. Bjlive must confirm the exact property, rate, and availability before payment.</p>
+          <div class="aside-divider"></div>
+          <div class="aside-location">
+            <i data-lucide="map-pin" aria-hidden="true"></i>
+            <span><small>Business location</small><strong>Mombasa Airport Road</strong></span>
+          </div>
+          <a class="aside-contact-link" href="/contact">Questions? Contact Bjlive <span aria-hidden="true">↗</span></a>
+        </aside>
+      </div>
+
+      <section class="booking-review" id="booking-review" aria-live="polite" hidden>
+        <div class="draft-heading"><span class="draft-check" aria-hidden="true"><i data-lucide="check"></i></span><div><p class="eyebrow" id="review-kicker">Review before sending</p><h2 id="review-title">Your stay estimate</h2></div></div>
+        <p class="draft-disclaimer" id="review-disclaimer">This is an estimate only. Property and availability must be confirmed directly before payment.</p>
+        <p class="form-alert" id="review-alert" role="alert" hidden></p>
+        <dl class="draft-details" id="booking-summary"></dl>
+        <div class="booking-review-actions" id="review-actions"><button class="button button-primary" id="submit-booking-button" type="button">Submit booking request <i data-lucide="arrow-right" aria-hidden="true"></i></button><button class="text-button" id="edit-booking-button" type="button">Edit details</button></div>
+        <div class="booking-confirmation-actions" id="confirmation-actions" hidden><a class="button button-primary" id="booking-whatsapp-link" href="#" target="_blank" rel="noopener noreferrer">Continue in WhatsApp <i data-lucide="arrow-up-right" aria-hidden="true"></i></a><a class="button button-quiet" href="tel:+254735109066">Call Bjlive</a></div>
+        <section class="booking-payment-panel" id="booking-payment-panel" hidden aria-labelledby="booking-payment-title">
+          <p class="eyebrow">Payment</p><h2 id="booking-payment-title">Payment follows confirmation</h2><p id="booking-payment-message">Bjlive must confirm this request and the final amount before payment.</p>
+          <form id="booking-payment-form" hidden><label for="payment-phone">M-Pesa phone number<input id="payment-phone" name="customerPhone" type="tel" autocomplete="tel" required></label><button class="button button-primary" id="payment-button" type="submit">Request M-Pesa prompt</button></form>
+          <p class="payment-status" id="payment-status" role="status" aria-live="polite"></p>
+          <button class="text-button" id="refresh-booking-status" type="button" hidden>Refresh request status</button>
+        </section>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="page-width footer-inner">
+        <a class="brand footer-brand" href="/"><span class="brand-mark" aria-hidden="true">B</span><span>Bjlive <span class="brand-light">Travels & Bookings</span></span></a>
+        <p>Located on Mombasa Airport Road</p><p class="footer-note">Business details are shown only when confirmed.</p>
+      </div>
+    </footer>
+  </body>
+</html>

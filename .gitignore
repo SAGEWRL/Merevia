@@ -1,0 +1,8 @@
+.env
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+storage/property-images/*
+!storage/property-images/.gitignore
+node_modules/
+npm-debug.log*

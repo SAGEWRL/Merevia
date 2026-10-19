@@ -1,0 +1,1 @@
+ALTER TABLE booking_requests DROP COLUMN confirmed_amount_kes;

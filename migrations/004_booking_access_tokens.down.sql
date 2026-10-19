@@ -1,0 +1,1 @@
+ALTER TABLE booking_requests DROP COLUMN customer_access_token_hash;

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#163b2f">
+    <title>Admin | Bjlive Travels and Bookings</title>
+    <link rel="stylesheet" href="../styles/site.css">
+    <link rel="stylesheet" href="../styles/admin.css">
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script type="module" src="../scripts/admin.js"></script>
+  </head>
+  <body>
+    <header class="site-header admin-header">
+      <nav class="site-nav" aria-label="Administrator navigation">
+        <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">B</span><span class="brand-name">BJlive <span class="brand-light">ADMINISTRATION</span></span></a>
+        <a class="nav-link" href="/">View website <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+      </nav>
+    </header>
+
+    <main class="admin-main page-width">
+      <div class="admin-heading"><div><p class="eyebrow">Business workspace</p><h1>Manage bookings</h1></div><button class="admin-button admin-button-quiet" id="logout-button" type="button" hidden>Sign out</button></div>
+      <p class="admin-notice" id="admin-notice" role="status" aria-live="polite" hidden></p>
+
+      <section class="admin-login" id="login-panel" aria-labelledby="login-title" hidden>
+        <p class="eyebrow">Administrator access</p><h2 id="login-title">Sign in to manage Bjlive</h2>
+        <p id="admin-setup-note">Enter your administrator password.</p>
+        <form id="login-form"><label for="admin-password">Administrator password</label><input id="admin-password" name="password" type="password" autocomplete="current-password" minlength="14" required><button class="admin-button admin-button-primary" type="submit">Sign in</button></form>
+      </section>
+
+      <div id="admin-panel" hidden>
+        <nav class="admin-tabs" aria-label="Management sections"><a href="#properties">Properties</a><a href="#prices">Package prices</a><a href="#requests">Booking requests</a><a href="#payments">Payments</a></nav>
+
+        <section class="admin-section" id="properties" aria-labelledby="properties-title">
+          <div class="admin-section-heading"><div><p class="eyebrow">Inventory</p><h2 id="properties-title">Accommodation properties</h2><p>New listings remain unpublished until you approve them.</p></div><button class="admin-button admin-button-primary" id="new-property-button" type="button">Add property</button></div>
+          <div class="admin-layout">
+            <form class="admin-form" id="property-form" hidden>
+              <input type="hidden" name="id">
+              <div class="admin-form-heading"><h3 id="property-form-title">New property</h3><button class="admin-icon-button" id="close-property-form" type="button" aria-label="Close property form">×</button></div>
+              <label>Property name<input name="name" maxlength="120" required></label>
+              <div class="admin-fields-two"><label>Location<select name="location" required><option value="">Choose location</option><option>Mombasa</option><option>Diani</option><option>Malindi</option><option>Kisumu</option></select></label><label>Accommodation type<select name="accommodationType" required><option value="">Choose type</option></select></label></div>
+              <div class="admin-fields-two"><label>Daily price (KSh)<input name="dailyPriceKes" type="number" min="1" step="1" required></label><label>Guest capacity<input name="guestCapacity" type="number" min="1" max="30" step="1" required></label></div>
+              <div class="admin-fields-two"><label>Bedrooms<input name="bedrooms" type="number" min="0" max="20" step="1"></label><label>Bathrooms<input name="bathrooms" type="number" min="0" max="20" step="1"></label></div>
+              <label>Description<textarea name="description" rows="4" maxlength="4000"></textarea></label>
+              <label>Amenities <span class="admin-hint">One confirmed amenity per line</span><textarea name="amenities" rows="3"></textarea></label>
+              <label>Availability status<select name="availabilityStatus"><option value="unconfirmed">Unconfirmed</option><option value="available">Available to enquire</option><option value="unavailable">Unavailable</option></select></label>
+              <label class="admin-check"><input name="priceConfirmed" type="checkbox"> I have confirmed this property's exact daily price</label>
+              <label class="admin-check"><input name="published" type="checkbox"> Publish this property on the public site</label>
+              <label>Property photos <span class="admin-hint">JPEG, PNG or WebP, up to 4.5 MB each</span><input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
+              <div class="admin-form-actions"><button class="admin-button admin-button-primary" type="submit">Save property</button><button class="admin-button admin-button-quiet" id="cancel-property-form" type="button">Cancel</button></div>
+            </form>
+            <div class="admin-record-list" id="property-list" aria-live="polite"><p class="admin-empty">Loading properties…</p></div>
+          </div>
+        </section>
+
+        <section class="admin-section" id="prices" aria-labelledby="prices-title">
+          <div class="admin-section-heading"><div><p class="eyebrow">Rates</p><h2 id="prices-title">Accommodation package prices</h2><p>These are public starting prices and ranges. Changes are stored in the database.</p></div></div>
+          <form class="admin-rate-list" id="rates-form"><div class="admin-rate-heading"><span>Accommodation type</span><span>Starting price</span><span>Minimum</span><span>Maximum</span><span></span></div><div id="rate-rows"><p class="admin-empty">Loading package rates…</p></div><button class="admin-button admin-button-primary" type="submit">Save price changes</button></form>
+        </section>
+
+        <section class="admin-section" id="requests" aria-labelledby="requests-title">
+          <div class="admin-section-heading"><div><p class="eyebrow">Enquiries</p><h2 id="requests-title">Booking requests</h2><p>Requests are not reservations. Confirm property, price, and dates with the guest before updating status.</p></div><button class="admin-button admin-button-quiet" data-refresh-bookings type="button">Refresh</button></div>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Request</th><th>Stay</th><th>Guest</th><th>Estimate</th><th>Property</th><th>Guest-agreed total (KSh)</th><th>Status</th><th>Created</th></tr></thead><tbody id="booking-rows"><tr><td colspan="8">Loading requests…</td></tr></tbody></table></div>
+        </section>
+
+        <section class="admin-section" id="payments" aria-labelledby="payments-title">
+          <div class="admin-section-heading"><div><p class="eyebrow">Payment records</p><h2 id="payments-title">Payment status</h2><p>Statuses are recorded only after trusted provider verification. Manual status edits are disabled.</p></div><button class="admin-button admin-button-quiet" data-refresh-payments type="button">Refresh</button></div>
+          <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Booking</th><th>Provider</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead><tbody id="payment-rows"><tr><td colspan="5">Loading payment records…</td></tr></tbody></table></div>
+          <p class="admin-warning">M-Pesa initiation is not enabled until merchant credentials, a public HTTPS callback URL, and provider approval are configured.</p>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

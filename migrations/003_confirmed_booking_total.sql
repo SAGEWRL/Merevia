@@ -1,0 +1,1 @@
+ALTER TABLE booking_requests ADD COLUMN confirmed_amount_kes INTEGER CHECK (confirmed_amount_kes IS NULL OR confirmed_amount_kes > 0);

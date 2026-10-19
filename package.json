@@ -1,0 +1,13 @@
+{
+  "name": "bjlive-travels",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env scripts/serve.js",
+    "start": "node --env-file-if-exists=.env scripts/serve.js",
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "migrate:rollback": "node --env-file-if-exists=.env scripts/migrate.js --down",
+    "test": "node --test"
+  }
+}
