@@ -45,7 +45,7 @@ For live M-Pesa, the business must complete Safaricom merchant onboarding/approv
 
 ## Vercel client preview
 
-The Vercel function at `api/[...path].js` serves the same API routes as the local Node server. It uses Neon PostgreSQL for listings, booking requests, prices, payments, audit records, and administrator sessions; Vercel Blob stores approved property photos. The PostgreSQL schema is initialized idempotently when the API first starts. Vercel does not use the local SQLite file or `storage/property-images/` directory.
+The Vercel function at `api/index.js` serves the same API routes as the local Node server. A rewrite forwards all `/api/*` paths to this entrypoint while preserving the original route path. It uses Neon PostgreSQL for listings, booking requests, prices, payments, audit records, and administrator sessions; Vercel Blob stores approved property photos. The PostgreSQL schema is initialized idempotently when the API first starts. Vercel does not use the local SQLite file or `storage/property-images/` directory.
 
 1. Link the repository to a Vercel project and add a Neon database and Vercel Blob store.
 2. Configure these values in Vercel Project Settings for the Preview environment: `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `ADMIN_PASSWORD` (a unique value of at least 14 characters), and `BOOKING_ACCESS_SECRET` (at least 32 random characters). Keep the values private and stable between deployments.

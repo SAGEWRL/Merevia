@@ -3,6 +3,7 @@ import { Pool } from '@neondatabase/serverless';
 import { createApiHandler } from '../scripts/api.js';
 import { createPostgresDatabase } from '../scripts/postgres-database.js';
 import { POSTGRES_SCHEMA } from '../scripts/postgres-schema.js';
+import { originalApiUrl } from '../scripts/vercel-routing.js';
 
 const pool = process.env.DATABASE_URL
   ? new Pool({ connectionString: process.env.DATABASE_URL })
@@ -47,7 +48,7 @@ export default async function handler(request, response) {
     });
     await schemaReady;
     handleApi ??= createApiHandler({ database, environment: process.env, photoStorage });
-    await handleApi(request, response, new URL(request.url, `https://${request.headers.host || 'localhost'}`));
+    await handleApi(request, response, originalApiUrl(request));
   } catch (error) {
     console.error('Vercel API request failed:', error);
     response.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
