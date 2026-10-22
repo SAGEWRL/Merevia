@@ -8,9 +8,9 @@ export const ACCOMMODATION_TYPES = Object.freeze([
   Object.freeze({ type: 'Two-bedroom accommodation', startingPriceKes: 8000, minimumPriceKes: 8000, maximumPriceKes: 10000 }),
 ]);
 
-export function getAccommodationTypes(database) {
+export async function getAccommodationTypes(database) {
   const overrides = new Map(
-    database.prepare('SELECT * FROM package_prices').all().map((row) => [row.accommodation_type, row]),
+    (await database.prepare('SELECT * FROM package_prices').all()).map((row) => [row.accommodation_type, row]),
   );
 
   return ACCOMMODATION_TYPES.map((packageRate) => {
@@ -27,6 +27,6 @@ export function getAccommodationTypes(database) {
   });
 }
 
-export function getAccommodationType(type, database) {
-  return getAccommodationTypes(database).find((packageRate) => packageRate.type === type) ?? null;
+export async function getAccommodationType(type, database) {
+  return (await getAccommodationTypes(database)).find((packageRate) => packageRate.type === type) ?? null;
 }

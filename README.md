@@ -1,10 +1,10 @@
-# Bjlive Travels and Bookings
+# Marevia
 
-Accommodation enquiries for Mombasa, Diani, Malindi, and Kisumu. The public site uses the existing HTML/CSS/vanilla JavaScript frontend and a small same-origin Node API. The local database is SQLite; no npm runtime dependencies are required.
+Accommodation enquiries for Mombasa, Diani, Malindi, and Kisumu. The site uses an HTML/CSS/vanilla JavaScript frontend and a same-origin Node API. Local development uses SQLite; Vercel deployments use Neon PostgreSQL and Vercel Blob for durable data and property photos.
 
 ## Run locally
 
-1. Use Node.js 24 or newer.
+1. Use Node.js 24 or newer for local development.
 2. Copy `.env.example` to `.env`.
 3. Set `ADMIN_PASSWORD` to a unique password with at least 14 characters and `BOOKING_ACCESS_SECRET` to at least 32 random characters. Do not commit `.env` or send secrets in chat.
 4. Run `npm run migrate` to apply the schema.
@@ -19,7 +19,7 @@ Open `/admin`, sign in with `ADMIN_PASSWORD`, and use the workspace to edit pack
 
 The initial database contains schema only and no property or booking records. No example inventory is inserted. Public listings appear after an administrator adds and publishes them.
 
-Uploads are explicitly selected in the admin form, limited to JPEG/PNG/WebP and 4.5 MB per image, signature-checked, and stored under `storage/property-images/`. Only uploaded property images are served from `/uploads/properties/`. Keep that directory in protected backups; do not copy a whole phone photo library into it.
+Uploads are explicitly selected in the admin form, limited to JPEG/PNG/WebP and 4 MB per image, and signature-checked. Local uploads are stored under `storage/property-images/`; Vercel uploads use public Vercel Blob URLs. Do not copy a whole phone photo library into the storage folder.
 
 ## Prices and booking requests
 
@@ -43,8 +43,16 @@ For sandbox testing, first obtain Daraja sandbox credentials and confirm the sho
 
 For live M-Pesa, the business must complete Safaricom merchant onboarding/approval, obtain production keys and shortcode/passkey, register the exact public HTTPS callback URL, set `MPESA_ENV=production`, and protect/rotate secrets using the hosting platform’s secret manager. Do not advertise online payment until a real provider approval and end-to-end production-like test has passed. Bank payments are not implemented.
 
-## Production deployment notes
+## Vercel client preview
 
-This app currently targets a single Node process with a local SQLite file and in-memory admin sessions. Use a host with durable private disk, HTTPS termination, process supervision, and a backup/restore plan; do not deploy the SQLite file to ephemeral storage or multiple app instances. A horizontally scaled deployment should move data/session storage to managed PostgreSQL and shared session storage before launch. Set `NODE_ENV=production` so cookies use `Secure`; configure strong private `ADMIN_PASSWORD` and `BOOKING_ACCESS_SECRET` values; set `PUBLIC_SITE_URL`; and run migrations during release, not on each request. Admin login sessions reset when the process restarts.
+The Vercel function at `api/[...path].js` serves the same API routes as the local Node server. It uses Neon PostgreSQL for listings, booking requests, prices, payments, audit records, and administrator sessions; Vercel Blob stores approved property photos. The PostgreSQL schema is initialized idempotently when the API first starts. Vercel does not use the local SQLite file or `storage/property-images/` directory.
+
+1. Link the repository to a Vercel project and add a Neon database and Vercel Blob store.
+2. Configure these values in Vercel Project Settings for the Preview environment: `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `ADMIN_PASSWORD` (a unique value of at least 14 characters), and `BOOKING_ACCESS_SECRET` (at least 32 random characters). Keep the values private and stable between deployments.
+3. Deploy a Preview build and test the public catalog, `/admin` login, property creation/photo upload, booking requests, and admin updates. Do not configure live M-Pesa credentials for client preview.
+
+The hosted database starts empty; local SQLite records and ignored uploaded files are not copied to Vercel. Add only client-approved test listings and photos to the Preview environment. Use separate Preview and Production credentials and storage where possible.
+
+For production, set `NODE_ENV=production`, use unique production secrets, configure a verified `PUBLIC_SITE_URL`, and complete M-Pesa merchant onboarding and callback verification before enabling payments. Back up hosted data and review Neon/Blob retention and access settings before launch.
 
 Property inventory and exact prices remain business-managed data. Add only approved property photos and verified descriptions/amenities. The featured image at `images/hotel.jpg` is the supplied business image; confirm its visible signage is appropriate for the featured accommodation before publication.

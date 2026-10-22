@@ -28,12 +28,12 @@ async function loadProperty() {
     const rateData = await rateResponse.json();
     const packageRate = rateData.packages?.find((item) => item.type === property.accommodationType);
 
-    document.title = `${property.name} | Bjlive Travels and Bookings`;
+    document.title = `${property.name} | Marevia`;
     document.querySelector('#property-breadcrumb').textContent = property.name;
     document.querySelector('#property-detail-type').textContent = property.accommodationType;
     document.querySelector('#property-detail-name').textContent = property.name;
     document.querySelector('#property-detail-location').textContent = `${property.location} · Up to ${property.guestCapacity} guests`;
-    document.querySelector('#property-detail-description').textContent = property.description || 'Contact Bjlive for the property description and any further verified details.';
+    document.querySelector('#property-detail-description').textContent = property.description || 'Contact Marevia for the property description and any further verified details.';
 
     const price = document.querySelector('#property-detail-price');
     if (property.priceConfirmed) {
@@ -49,7 +49,7 @@ async function loadProperty() {
     addFact(facts, 'Guest capacity', property.guestCapacity);
     addFact(facts, 'Bedrooms', property.bedrooms);
     addFact(facts, 'Bathrooms', property.bathrooms);
-    addFact(facts, 'Availability', 'Confirm dates directly with Bjlive');
+    addFact(facts, 'Availability', 'Confirm dates directly with Marevia');
 
     const amenities = document.querySelector('#property-detail-amenities');
     if (property.amenities?.length) {

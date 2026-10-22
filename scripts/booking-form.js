@@ -53,7 +53,7 @@ export function buildWhatsAppUrl(values, phoneNumber) {
   const digits = String(phoneNumber).replace(/\D/g, '');
   const internationalNumber = digits.startsWith('0') ? `254${digits.slice(1)}` : digits;
   const message = [
-    'Hello Bjlive Travels and Bookings, I would like to enquire about:',
+    'Hello Marevia, I would like to enquire about:',
     `Service: ${values.enquiryType}`,
     `Destination or stay area: ${values.destination}`,
     `Travel dates: ${values.arrivalDate} to ${values.departureDate}`,

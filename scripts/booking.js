@@ -114,7 +114,7 @@ function updatePreview() {
   const amount = estimate.minimum === estimate.maximum
     ? money(estimate.minimum)
     : `${money(estimate.minimum)}–${money(estimate.maximum)}`;
-  preview.textContent = `Estimated ${estimate.durationDays} ${estimate.durationDays === 1 ? 'day' : 'days'}: ${amount}. ${estimate.priceConfirmed ? 'Property daily rate configured by Bjlive.' : 'Range estimate; confirm the exact property rate with Bjlive.'}`;
+  preview.textContent = `Estimated ${estimate.durationDays} ${estimate.durationDays === 1 ? 'day' : 'days'}: ${amount}. ${estimate.priceConfirmed ? 'Property daily rate configured by Marevia.' : 'Range estimate; confirm the exact property rate with Marevia.'}`;
 }
 
 async function loadProperties(selectedId = '') {
@@ -152,7 +152,7 @@ function renderSummary(values, estimate) {
   const rows = [
     ['Location', values.location],
     ['Accommodation', values.accommodationType],
-    ['Property', estimate.property?.name || 'Bjlive to help find a property'],
+    ['Property', estimate.property?.name || 'Marevia to help find a property'],
     ['Dates', `${values.checkIn} to ${values.checkOut}`],
     ['Duration', `${estimate.durationDays} ${estimate.durationDays === 1 ? 'day' : 'days'}`],
     ['Guests', String(values.guests)],
@@ -194,7 +194,7 @@ function validate(values) {
 function showConfirmation(booking, values, estimate) {
   document.querySelector('#review-kicker').textContent = 'Request submitted';
   document.querySelector('#review-title').textContent = `Request ${booking.reference}`;
-  document.querySelector('#review-disclaimer').textContent = 'Your booking request has been received and is pending review. This is not a confirmed reservation. Bjlive must confirm the property, final price, and availability before payment.';
+  document.querySelector('#review-disclaimer').textContent = 'Your booking request has been received and is pending review. This is not a confirmed reservation. Marevia must confirm the property, final price, and availability before payment.';
   summary.appendChild((() => {
     const row = document.createElement('div');
     const term = document.createElement('dt');
@@ -223,7 +223,7 @@ function showConfirmation(booking, values, estimate) {
   paymentPanel.hidden = false;
   document.querySelector('#booking-payment-form').hidden = true;
   document.querySelector('#refresh-booking-status').hidden = false;
-  document.querySelector('#booking-payment-message').textContent = 'Bjlive must confirm the property, exact amount, and availability before any payment prompt can be requested.';
+  document.querySelector('#booking-payment-message').textContent = 'Marevia must confirm the property, exact amount, and availability before any payment prompt can be requested.';
   document.querySelector('#payment-phone').value = values.customerPhone;
   const url = new URL(window.location.href);
   url.searchParams.set('reference', booking.reference);
@@ -279,7 +279,7 @@ function renderCustomerBookingStatus(booking, payments = []) {
       paymentForm.hidden = !configuration.configured;
       paymentStatus.textContent = configuration.configured
         ? 'You can request a new prompt after checking your M-Pesa messages.'
-        : 'Contact Bjlive to arrange a verified payment method.';
+        : 'Contact Marevia to arrange a verified payment method.';
     }).catch((error) => {
       paymentForm.hidden = true;
       paymentStatus.textContent = error.message;
@@ -288,25 +288,25 @@ function renderCustomerBookingStatus(booking, payments = []) {
   }
   if (booking.status !== 'confirmed' || !booking.confirmedAmountKes) {
     title.textContent = 'Payment follows confirmation';
-    message.textContent = 'Bjlive must confirm this request, property, availability, and exact amount before payment.';
+    message.textContent = 'Marevia must confirm this request, property, availability, and exact amount before payment.';
     paymentForm.hidden = true;
     paymentStatus.textContent = '';
     return;
   }
 
   title.textContent = 'Confirmed total';
-  message.textContent = `Bjlive confirmed ${money(booking.confirmedAmountKes)} for this request. Confirm this amount with the business before continuing.`;
+  message.textContent = `Marevia confirmed ${money(booking.confirmedAmountKes)} for this request. Confirm this amount with the business before continuing.`;
   const estimateRange = `${money(booking.estimatedMinimumKes)}–${money(booking.estimatedMaximumKes)}`;
   if (booking.confirmedAmountKes < booking.estimatedMinimumKes || booking.confirmedAmountKes > booking.estimatedMaximumKes) {
     paymentForm.hidden = true;
-    paymentStatus.textContent = `The confirmed amount is outside the original estimate range (${estimateRange}). Contact Bjlive.`;
+    paymentStatus.textContent = `The confirmed amount is outside the original estimate range (${estimateRange}). Contact Marevia.`;
     return;
   }
   void api('/api/payments/mpesa/config').then((configuration) => {
     paymentForm.hidden = !configuration.configured;
     paymentStatus.textContent = configuration.configured
       ? 'If you continue, an M-Pesa prompt is sent to the number above. Never share your PIN.'
-      : 'Online M-Pesa payment is not configured yet. Contact Bjlive to arrange a verified payment method.';
+      : 'Online M-Pesa payment is not configured yet. Contact Marevia to arrange a verified payment method.';
   }).catch((error) => {
     paymentForm.hidden = true;
     paymentStatus.textContent = error.message;
@@ -333,7 +333,7 @@ async function refreshBookingStatus(reference = new URLSearchParams(window.locat
     document.querySelector('#review-title').textContent = `Request ${booking.reference}`;
     document.querySelector('#review-disclaimer').textContent = booking.status === 'confirmed'
       ? 'The business confirmed this booking request. Keep this page private; payment is separate and is not confirmed until the provider verifies it.'
-      : 'This is a booking request, not a confirmed reservation. Availability and exact price must be confirmed by Bjlive.';
+      : 'This is a booking request, not a confirmed reservation. Availability and exact price must be confirmed by Marevia.';
     const referenceRow = [...summary.children].find((row) => row.querySelector('dt')?.textContent === 'Request status');
     if (!referenceRow) {
       summary.replaceChildren();
@@ -407,7 +407,7 @@ form.addEventListener('submit', (event) => {
   document.querySelector('#review-kicker').textContent = 'Review before sending';
   document.querySelector('#review-title').textContent = 'Your stay estimate';
   document.querySelector('#review-disclaimer').textContent = estimate.priceConfirmed
-    ? 'This estimate uses a property rate entered by Bjlive. Dates and the final amount still require direct confirmation before payment.'
+    ? 'This estimate uses a property rate entered by Marevia. Dates and the final amount still require direct confirmation before payment.'
     : 'This is a range estimate based on the owner-provided daily rates. The property, exact price, and date availability must be confirmed before payment.';
   renderSummary(values, estimate);
   document.querySelector('#review-actions').hidden = false;
@@ -476,7 +476,7 @@ document.querySelector('#booking-payment-form').addEventListener('submit', async
   const button = document.querySelector('#payment-button');
   const reference = new URLSearchParams(window.location.search).get('reference');
   if (!reference) {
-    document.querySelector('#payment-status').textContent = 'This request link is missing its reference. Contact Bjlive before payment.';
+    document.querySelector('#payment-status').textContent = 'This request link is missing its reference. Contact Marevia before payment.';
     return;
   }
   button.disabled = true;

@@ -6,3 +6,5 @@ storage/property-images/*
 !storage/property-images/.gitignore
 node_modules/
 npm-debug.log*
+.copilot-azure/
+.vercel/

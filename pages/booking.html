@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#163b2f">
-    <meta name="description" content="Request an accommodation booking with Bjlive Travels and Bookings. Review your estimated stay cost before sending your request.">
-    <meta property="og:title" content="Accommodation request | Bjlive Travels and Bookings">
+    <meta name="theme-color" content="#163943">
+    <meta name="description" content="Request an accommodation booking with Marevia. Review your estimated stay cost before sending your request.">
+    <meta property="og:title" content="Accommodation request | Marevia">
     <meta name="robots" content="index, follow">
-    <title>Accommodation Request | Bjlive Travels and Bookings</title>
+    <title>Accommodation Request | Marevia</title>
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <link rel="stylesheet" href="../styles/site.css">
@@ -18,9 +18,9 @@
   <body>
     <header class="site-header">
       <nav class="site-nav" aria-label="Main navigation">
-        <a class="brand" href="/" aria-label="Bjlive Travels & Bookings home">
-          <span class="brand-mark" aria-hidden="true">B</span>
-          <span>Bjlive <span class="brand-light">Travels & Bookings</span></span>
+        <a class="brand" href="/" aria-label="Marevia home">
+          <img class="brand-mark" src="/images/marevia-mark.svg" alt="">
+          <span class="brand-name"><strong>MAREVIA</strong><span class="brand-light">Let Wonder Lead the Way</span></span>
         </a>
         <div class="nav-links">
           <a class="nav-link" href="/">Home</a>
@@ -103,19 +103,19 @@
             <button class="button button-primary" id="review-booking-button" type="submit">Review estimate <i data-lucide="arrow-right" aria-hidden="true"></i></button>
             <a class="button button-quiet" href="/">Cancel</a>
           </div>
-          <p class="privacy-note"><i data-lucide="lock-keyhole" aria-hidden="true"></i> Your request is stored so Bjlive can follow up. It is not a confirmed reservation; do not enter payment credentials here.</p>
+          <p class="privacy-note"><i data-lucide="lock-keyhole" aria-hidden="true"></i> Your request is stored so Marevia can follow up. It is not a confirmed reservation; do not enter payment credentials here.</p>
         </form>
 
         <aside class="enquiry-aside">
-          <div class="aside-index">BJLIVE / ENQUIRY</div>
+          <div class="aside-index">MAREVIA / ENQUIRY</div>
           <h2>An enquiry first, not an instant booking.</h2>
-          <p>Review your estimated cost and send a booking request. Bjlive must confirm the exact property, rate, and availability before payment.</p>
+          <p>Review your estimated cost and send a booking request. Marevia must confirm the exact property, rate, and availability before payment.</p>
           <div class="aside-divider"></div>
           <div class="aside-location">
             <i data-lucide="map-pin" aria-hidden="true"></i>
             <span><small>Business location</small><strong>Mombasa Airport Road</strong></span>
           </div>
-          <a class="aside-contact-link" href="/contact">Questions? Contact Bjlive <span aria-hidden="true">↗</span></a>
+          <a class="aside-contact-link" href="/contact">Questions? Contact Marevia <span aria-hidden="true">↗</span></a>
         </aside>
       </div>
 
@@ -125,9 +125,9 @@
         <p class="form-alert" id="review-alert" role="alert" hidden></p>
         <dl class="draft-details" id="booking-summary"></dl>
         <div class="booking-review-actions" id="review-actions"><button class="button button-primary" id="submit-booking-button" type="button">Submit booking request <i data-lucide="arrow-right" aria-hidden="true"></i></button><button class="text-button" id="edit-booking-button" type="button">Edit details</button></div>
-        <div class="booking-confirmation-actions" id="confirmation-actions" hidden><a class="button button-primary" id="booking-whatsapp-link" href="#" target="_blank" rel="noopener noreferrer">Continue in WhatsApp <i data-lucide="arrow-up-right" aria-hidden="true"></i></a><a class="button button-quiet" href="tel:+254735109066">Call Bjlive</a></div>
+        <div class="booking-confirmation-actions" id="confirmation-actions" hidden><a class="button button-primary" id="booking-whatsapp-link" href="#" target="_blank" rel="noopener noreferrer">Continue in WhatsApp <i data-lucide="arrow-up-right" aria-hidden="true"></i></a><a class="button button-quiet" href="tel:+254735109066">Call Marevia</a></div>
         <section class="booking-payment-panel" id="booking-payment-panel" hidden aria-labelledby="booking-payment-title">
-          <p class="eyebrow">Payment</p><h2 id="booking-payment-title">Payment follows confirmation</h2><p id="booking-payment-message">Bjlive must confirm this request and the final amount before payment.</p>
+          <p class="eyebrow">Payment</p><h2 id="booking-payment-title">Payment follows confirmation</h2><p id="booking-payment-message">Marevia must confirm this request and the final amount before payment.</p>
           <form id="booking-payment-form" hidden><label for="payment-phone">M-Pesa phone number<input id="payment-phone" name="customerPhone" type="tel" autocomplete="tel" required></label><button class="button button-primary" id="payment-button" type="submit">Request M-Pesa prompt</button></form>
           <p class="payment-status" id="payment-status" role="status" aria-live="polite"></p>
           <button class="text-button" id="refresh-booking-status" type="button" hidden>Refresh request status</button>
@@ -137,7 +137,7 @@
 
     <footer class="site-footer">
       <div class="page-width footer-inner">
-        <a class="brand footer-brand" href="/"><span class="brand-mark" aria-hidden="true">B</span><span>Bjlive <span class="brand-light">Travels & Bookings</span></span></a>
+        <a class="brand footer-brand" href="/"><img class="brand-mark" src="/images/marevia-mark.svg" alt=""><span class="brand-name"><strong>MAREVIA</strong><span class="brand-light">Let Wonder Lead the Way</span></span></a>
         <p>Located on Mombasa Airport Road</p><p class="footer-note">Business details are shown only when confirmed.</p>
       </div>
     </footer>

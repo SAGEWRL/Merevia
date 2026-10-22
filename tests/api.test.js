@@ -267,6 +267,16 @@ test('property changes require an admin session and published listings are searc
   const photos = (await upload.json()).photos;
   assert.equal(photos.length, 1);
   assert.equal(existsSync(join(uploadDirectory, photos[0].split('/').pop())), true);
+
+  const rawUpload = await fetch(`${baseUrl}/api/admin/properties/${property.id}/photos`, {
+    method: 'POST',
+    headers: { ...adminHeaders, 'Content-Type': 'image/png' },
+    body: photoBytes,
+  });
+  assert.equal(rawUpload.status, 201);
+  const rawPhotos = (await rawUpload.json()).photos;
+  assert.equal(rawPhotos.length, 2);
+  assert.equal(existsSync(join(uploadDirectory, rawPhotos[1].split('/').pop())), true);
 });
 
 test('M-Pesa stays disabled until the merchant configuration exists', async () => {
@@ -281,6 +291,8 @@ test('schema migrations apply and roll back without adding records', () => {
   migrateLatest(migrationDatabase);
   assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM properties').get().count, 0);
   assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM booking_requests').get().count, 0);
+  assert.equal(rollbackLastMigration(migrationDatabase), '006_admin_login_attempts');
+  assert.equal(rollbackLastMigration(migrationDatabase), '005_admin_sessions');
   assert.equal(rollbackLastMigration(migrationDatabase), '004_booking_access_tokens');
   assert.equal(rollbackLastMigration(migrationDatabase), '003_confirmed_booking_total');
   assert.equal(rollbackLastMigration(migrationDatabase), '002_payment_idempotency');

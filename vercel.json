@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/[...path].js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/booking", "destination": "/pages/booking.html" },
+    { "source": "/contact", "destination": "/pages/contact.html" },
+    { "source": "/admin", "destination": "/pages/admin.html" },
+    { "source": "/properties/:slug", "destination": "/pages/property.html" }
+  ]
+}

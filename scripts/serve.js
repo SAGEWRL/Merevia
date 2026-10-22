@@ -115,7 +115,7 @@ const server = createServer(async (request, response) => {
 
 const port = Number(process.env.PORT) || 4173;
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Bjlive Travels & Bookings ready at http://localhost:${port}/`);
+  console.log(`Marevia ready at http://localhost:${port}/`);
 });
 
 function closeServer() {

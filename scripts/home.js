@@ -56,6 +56,8 @@ function renderProperty(property) {
   const card = makeElement('article', 'property-card');
   const imageFrame = makeElement('div', 'property-card-image');
   const photo = property.photos?.[0];
+  const fallback = makeElement('div', 'property-image-empty');
+  fallback.hidden = Boolean(photo);
   if (photo) {
     const image = document.createElement('img');
     image.src = photo;
@@ -67,7 +69,6 @@ function renderProperty(property) {
     }, { once: true });
     imageFrame.append(image);
   }
-  const fallback = makeElement('div', 'property-image-empty');
   fallback.append(makeElement('span', '', 'No approved photo supplied'));
   imageFrame.append(fallback);
   card.append(imageFrame);
@@ -88,7 +89,7 @@ function renderProperty(property) {
   } else if (rate) {
     price.append(makeElement('strong', '', `${formatMoney(rate.minimumPriceKes)}–${formatMoney(rate.maximumPriceKes)}`), makeElement('span', '', 'per day · confirm exact rate'));
   } else {
-    price.append(makeElement('span', '', 'Confirm daily price with Bjlive'));
+    price.append(makeElement('span', '', 'Confirm daily price with Marevia'));
   }
   body.append(price);
 
@@ -152,7 +153,7 @@ searchForm.addEventListener('submit', async (event) => {
     if (result.properties.length) {
       showMessage(`${result.properties.length} published ${result.properties.length === 1 ? 'listing' : 'listings'} match these filters. ${result.availabilityDisclaimer}`);
     } else {
-      showMessage('No published listings match those filters yet. Send Bjlive your dates and location for help finding a stay.');
+      showMessage('No published listings match those filters yet. Send Marevia your dates and location for help finding a stay.');
       const enquiry = document.createElement('a');
       enquiry.className = 'button button-primary';
       enquiry.href = `/booking?location=${encodeURIComponent(values.location)}&type=${encodeURIComponent(values.type || '')}&checkIn=${encodeURIComponent(values.checkIn)}&checkOut=${encodeURIComponent(values.checkOut)}&guests=${encodeURIComponent(values.guests)}`;

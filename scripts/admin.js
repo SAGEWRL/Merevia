@@ -15,7 +15,7 @@ async function request(path, options = {}) {
     credentials: 'same-origin',
     ...options,
     headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(typeof options.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
     },
   });
@@ -77,15 +77,6 @@ function propertyPayload(form) {
     priceConfirmed: values.has('priceConfirmed'),
     published: values.has('published'),
   };
-}
-
-function fileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('load', () => resolve(String(reader.result).split(',')[1] || ''));
-    reader.addEventListener('error', () => reject(new Error(`Could not read ${file.name}.`)));
-    reader.readAsDataURL(file);
-  });
 }
 
 function resetPropertyForm() {
@@ -356,10 +347,11 @@ propertyForm.addEventListener('submit', async (event) => {
     const property = saved.property;
     const selectedFiles = [...propertyForm.elements.namedItem('photos').files];
     for (const file of selectedFiles) {
-      if (file.size > 4.5 * 1024 * 1024) throw new Error(`${file.name} is larger than 4.5 MB.`);
+      if (file.size > 4 * 1024 * 1024) throw new Error(`${file.name} is larger than 4 MB.`);
       await request(`/api/admin/properties/${property.id}/photos`, {
         method: 'POST',
-        body: JSON.stringify({ contentType: file.type, data: await fileAsBase64(file) }),
+        body: file,
+        headers: { 'Content-Type': file.type },
       });
     }
     resetPropertyForm();

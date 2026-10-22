@@ -8,6 +8,7 @@ import { createMpesaClient, normalizeKenyanPhone } from './mpesa.js';
 const DAY_MS = 86_400_000;
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const MAX_JSON_BYTES = 7 * 1024 * 1024;
+const MAX_PROPERTY_PHOTO_BYTES = 4 * 1024 * 1024;
 const VALID_BOOKING_STATUSES = new Set(['pending', 'reviewing', 'confirmed', 'declined', 'cancelled']);
 const VALID_AVAILABILITY = new Set(['unconfirmed', 'available', 'unavailable']);
 const ALLOWED_IMAGE_TYPES = new Map([
@@ -58,6 +59,15 @@ async function readJson(request) {
     throw new ApiError(415, 'json_required', 'Send this request as JSON.');
   }
 
+  if (request.body !== undefined) {
+    if (typeof request.body === 'string' || Buffer.isBuffer(request.body) || request.body instanceof Uint8Array) {
+      const body = Buffer.from(request.body).toString('utf8');
+      if (Buffer.byteLength(body) > MAX_JSON_BYTES) throw new ApiError(413, 'request_too_large', 'The request is too large.');
+      try { return JSON.parse(body); } catch { throw new ApiError(400, 'invalid_json', 'The request body is not valid JSON.'); }
+    }
+    if (typeof request.body === 'object' && request.body !== null) return request.body;
+  }
+
   let size = 0;
   const chunks = [];
   for await (const chunk of request) {
@@ -71,6 +81,28 @@ async function readJson(request) {
   } catch {
     throw new ApiError(400, 'invalid_json', 'The request body is not valid JSON.');
   }
+}
+
+async function readBytes(request, maxBytes) {
+  if (typeof request.body === 'string') {
+    const body = Buffer.from(request.body);
+    if (body.length > maxBytes) throw new ApiError(413, 'request_too_large', 'The uploaded image is too large.');
+    return body;
+  }
+  if (Buffer.isBuffer(request.body) || request.body instanceof Uint8Array) {
+    const body = Buffer.from(request.body);
+    if (body.length > maxBytes) throw new ApiError(413, 'request_too_large', 'The uploaded image is too large.');
+    return body;
+  }
+
+  let size = 0;
+  const chunks = [];
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maxBytes) throw new ApiError(413, 'request_too_large', 'The uploaded image is too large.');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 function propertyFromRow(row) {
@@ -95,9 +127,9 @@ function propertyFromRow(row) {
   };
 }
 
-function publicPropertyFromRow(row, database) {
+function publicPropertyFromRow(row, packageRates) {
   const property = propertyFromRow(row);
-  const packageRate = getAccommodationType(property.accommodationType, database);
+  const packageRate = packageRates.find((rate) => rate.type === property.accommodationType);
   return {
     ...property,
     dailyPriceKes: property.priceConfirmed ? property.dailyPriceKes : null,
@@ -151,8 +183,8 @@ function slugify(value) {
   return String(value).normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70);
 }
 
-function audit(database, action, entityType, entityId) {
-  database.prepare('INSERT INTO admin_audit_log (id, action, entity_type, entity_id) VALUES (?, ?, ?, ?)')
+async function audit(database, action, entityType, entityId) {
+  await database.prepare('INSERT INTO admin_audit_log (id, action, entity_type, entity_id) VALUES (?, ?, ?, ?)')
     .run(randomUUID(), action, entityType, entityId);
 }
 
@@ -172,12 +204,12 @@ function isSameOrigin(request) {
   }
 }
 
-function validateProperty(payload, previous, database) {
+async function validateProperty(payload, previous, database) {
   const values = { ...previous, ...payload };
   const name = String(values.name ?? '').trim();
   const location = values.location;
   const accommodationType = values.accommodationType;
-  const rate = getAccommodationType(accommodationType, database);
+  const rate = await getAccommodationType(accommodationType, database);
   const dailyPriceKes = Number(values.dailyPriceKes);
   const guestCapacity = Number(values.guestCapacity);
   const bedrooms = values.bedrooms === '' || values.bedrooms == null ? null : Number(values.bedrooms);
@@ -221,7 +253,7 @@ function validateProperty(payload, previous, database) {
   };
 }
 
-function saveProperty(database, id, slug, property) {
+async function saveProperty(database, id, slug, property) {
   const statement = database.prepare(`
     INSERT INTO properties (
       id, slug, name, location, accommodation_type, daily_price_kes, price_confirmed,
@@ -236,7 +268,7 @@ function saveProperty(database, id, slug, property) {
       availability_status=excluded.availability_status, is_published=excluded.is_published,
       updated_at=CURRENT_TIMESTAMP
   `);
-  statement.run(
+  await statement.run(
     id, slug, property.name, property.location, property.accommodationType, property.dailyPriceKes,
     Number(property.priceConfirmed), property.description, property.guestCapacity, property.bedrooms,
     property.bathrooms, JSON.stringify(property.amenities), property.availabilityStatus, Number(property.published),
@@ -248,9 +280,7 @@ function setCookie(request, sessionId, maxAge) {
   return `bjlive_admin=${sessionId}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure}`;
 }
 
-export function createApiHandler({ database, environment = process.env, uploadDirectory, mpesaClient = createMpesaClient({ environment }) }) {
-  const sessions = new Map();
-  const loginAttempts = new Map();
+export function createApiHandler({ database, environment = process.env, uploadDirectory, photoStorage, mpesaClient = createMpesaClient({ environment }) }) {
   const configuredPassword = environment.ADMIN_PASSWORD || '';
   const passwordSalt = randomBytes(32);
   const passwordDigest = configuredPassword.length >= 14
@@ -268,22 +298,31 @@ export function createApiHandler({ database, environment = process.env, uploadDi
     return createHmac('sha256', bookingAccessSecret).update(idempotencyKey).digest('hex');
   }
 
-  function sessionFor(request) {
+  async function sessionFor(request) {
     const id = getSessionId(request);
-    const expiry = sessions.get(id);
-    if (!expiry || expiry < Date.now()) {
-      sessions.delete(id);
+    if (!id) return null;
+    const session = await database.prepare('SELECT expires_at FROM admin_sessions WHERE id = ?').get(id);
+    if (!session || Number(session.expires_at) <= Date.now()) {
+      if (session) await database.prepare('DELETE FROM admin_sessions WHERE id = ?').run(id);
       return null;
     }
     return id;
   }
 
-  function requireAdmin(request) {
-    if (!sessionFor(request)) throw new ApiError(401, 'admin_required', 'Sign in as an administrator to continue.');
+  async function requireAdmin(request) {
+    if (!await sessionFor(request)) throw new ApiError(401, 'admin_required', 'Sign in as an administrator to continue.');
+  }
+
+  async function recordFailedLogin(ip, attempts) {
+    await database.prepare(`
+      INSERT INTO admin_login_attempts (ip, count, window_ends_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(ip) DO UPDATE SET count = excluded.count, window_ends_at = excluded.window_ends_at
+    `).run(ip, attempts.count + 1, attempts.until);
   }
 
   function ensureOrigin(request) {
-    if (!isSameOrigin(request)) throw new ApiError(403, 'origin_rejected', 'This request must come from the Bjlive website.');
+    if (!isSameOrigin(request)) throw new ApiError(403, 'origin_rejected', 'This request must come from the Marevia website.');
   }
 
   async function createBooking(request) {
@@ -291,7 +330,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
     const location = body.location;
     const accommodationType = body.accommodationType;
     if (!LOCATIONS.includes(location)) throw new ApiError(400, 'invalid_location', 'Choose Mombasa, Diani, Malindi, or Kisumu.');
-    const packageRate = getAccommodationType(accommodationType, database);
+    const packageRate = await getAccommodationType(accommodationType, database);
     if (!packageRate) throw new ApiError(400, 'invalid_accommodation_type', 'Choose one of the listed accommodation types.');
 
     const durationDays = parseDateRange(body.checkIn, body.checkOut);
@@ -309,7 +348,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
 
     let property = null;
     if (body.propertyId) {
-      const row = database.prepare('SELECT * FROM properties WHERE id = ? AND is_published = 1').get(String(body.propertyId));
+      const row = await database.prepare('SELECT * FROM properties WHERE id = ? AND is_published = 1').get(String(body.propertyId));
       if (!row) throw new ApiError(404, 'property_not_found', 'That property is no longer available for enquiry.');
       property = propertyFromRow(row);
       if (property.location !== location || property.accommodationType !== accommodationType) {
@@ -317,12 +356,12 @@ export function createApiHandler({ database, environment = process.env, uploadDi
       }
       if (guests > property.guestCapacity) throw new ApiError(400, 'guest_capacity_exceeded', `This property lists a guest capacity of ${property.guestCapacity}.`);
       if (property.availabilityStatus === 'unavailable') throw new ApiError(409, 'property_unavailable', 'This property is currently marked unavailable.');
-      const blocked = database.prepare(`
+      const blocked = await database.prepare(`
         SELECT 1 FROM availability_blocks
         WHERE property_id = ? AND starts_on < ? AND ends_on > ? LIMIT 1
       `).get(property.id, body.checkOut, body.checkIn);
       if (blocked) throw new ApiError(409, 'dates_blocked', 'The property is blocked for some of those dates. Choose different dates or another option.');
-      const confirmedConflict = database.prepare(`
+      const confirmedConflict = await database.prepare(`
         SELECT 1 FROM booking_requests
         WHERE property_id = ? AND status = 'confirmed' AND check_in < ? AND check_out > ? LIMIT 1
       `).get(property.id, body.checkOut, body.checkIn);
@@ -334,7 +373,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
     const estimatedMinimumKes = dailyMinimum * durationDays;
     const estimatedMaximumKes = dailyMaximum * durationDays;
     const idempotencyKey = String(request.headers['idempotency-key'] || randomUUID()).slice(0, 100);
-    const previous = database.prepare('SELECT * FROM booking_requests WHERE idempotency_key = ?').get(idempotencyKey);
+    const previous = await database.prepare('SELECT * FROM booking_requests WHERE idempotency_key = ?').get(idempotencyKey);
     if (previous) {
       return {
         status: 200,
@@ -348,7 +387,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
     const reference = `BJL-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
     const customerAccessToken = customerAccessTokenFor(idempotencyKey);
     const accessTokenHash = createHash('sha256').update(customerAccessToken).digest('hex');
-    database.prepare(`
+    await database.prepare(`
       INSERT INTO booking_requests (
         id, public_reference, property_id, accommodation_type, location, check_in, check_out,
         duration_days, guests, customer_name, customer_phone, customer_email,
@@ -361,7 +400,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
     );
     return {
       status: 201,
-      booking: bookingFromRow(database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(id)),
+      booking: bookingFromRow(await database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(id)),
       duplicate: false,
       customerAccessToken,
     };
@@ -369,145 +408,156 @@ export function createApiHandler({ database, environment = process.env, uploadDi
 
   async function handleAdmin(request, response, url, pathname) {
     if (pathname === '/api/admin/session' && request.method === 'GET') {
-      const sessionId = sessionFor(request);
+      const sessionId = await sessionFor(request);
       return sendJson(response, 200, { authenticated: Boolean(sessionId), configured: Boolean(passwordDigest) });
     }
 
     if (pathname === '/api/admin/login' && request.method === 'POST') {
       ensureOrigin(request);
       if (!passwordDigest) throw new ApiError(503, 'admin_not_configured', 'Set ADMIN_PASSWORD to a value of at least 14 characters in the local environment file.');
-      const ip = request.socket.remoteAddress || 'unknown';
+      const forwardedAddresses = request.headers['x-forwarded-for']?.split(',').map((address) => address.trim());
+      const ip = forwardedAddresses?.at(-1) || request.socket?.remoteAddress || 'unknown';
       const now = Date.now();
-      let attempts = loginAttempts.get(ip) || { count: 0, until: now + 15 * 60 * 1000 };
-      if (attempts.until <= now) attempts = { count: 0, until: now + 15 * 60 * 1000 };
+      const storedAttempts = await database.prepare('SELECT count, window_ends_at FROM admin_login_attempts WHERE ip = ?').get(ip);
+      let attempts = storedAttempts
+        ? { count: Number(storedAttempts.count), until: Number(storedAttempts.window_ends_at) }
+        : { count: 0, until: now + 15 * 60 * 1000 };
       if (attempts.count >= 5) throw new ApiError(429, 'login_rate_limited', 'Too many sign-in attempts. Wait 15 minutes and try again.');
       const body = await readJson(request);
       const password = typeof body.password === 'string' ? body.password : '';
       if (password.length > 1024) {
-        loginAttempts.set(ip, { count: attempts.count + 1, until: attempts.until });
+        await recordFailedLogin(ip, attempts);
         throw new ApiError(401, 'invalid_credentials', 'The administrator password was not accepted.');
       }
       const candidate = scryptSync(password, passwordSalt, 64);
       if (!timingSafeEqual(candidate, passwordDigest)) {
-        loginAttempts.set(ip, { count: attempts.count + 1, until: attempts.until });
+        await recordFailedLogin(ip, attempts);
         throw new ApiError(401, 'invalid_credentials', 'The administrator password was not accepted.');
       }
-      loginAttempts.delete(ip);
+      await database.prepare('DELETE FROM admin_login_attempts WHERE ip = ?').run(ip);
       const sessionId = randomBytes(32).toString('hex');
-      sessions.set(sessionId, Date.now() + SESSION_TTL_MS);
+      await database.prepare('INSERT INTO admin_sessions (id, expires_at) VALUES (?, ?)').run(sessionId, Date.now() + SESSION_TTL_MS);
       return sendJson(response, 200, { authenticated: true }, { 'Set-Cookie': setCookie(request, sessionId, SESSION_TTL_MS / 1000) });
     }
 
     if (pathname === '/api/admin/logout' && request.method === 'POST') {
       ensureOrigin(request);
       const sessionId = getSessionId(request);
-      sessions.delete(sessionId);
+      if (sessionId) await database.prepare('DELETE FROM admin_sessions WHERE id = ?').run(sessionId);
       return sendJson(response, 200, { authenticated: false }, { 'Set-Cookie': setCookie(request, '', 0) });
     }
 
-    requireAdmin(request);
+    await requireAdmin(request);
     if (request.method !== 'GET') ensureOrigin(request);
 
     if (pathname === '/api/admin/properties' && request.method === 'GET') {
-      return sendJson(response, 200, { properties: database.prepare('SELECT * FROM properties ORDER BY created_at DESC').all().map(propertyFromRow) });
+      const properties = await database.prepare('SELECT * FROM properties ORDER BY created_at DESC').all();
+      return sendJson(response, 200, { properties: properties.map(propertyFromRow) });
     }
 
     if (pathname === '/api/admin/properties' && request.method === 'POST') {
       const body = await readJson(request);
-      const property = validateProperty(body, {}, database);
+      const property = await validateProperty(body, {}, database);
       const id = randomUUID();
       const slug = `${slugify(property.name) || 'property'}-${id.slice(0, 8)}`;
-      saveProperty(database, id, slug, property);
-      audit(database, 'create', 'property', id);
-      return sendJson(response, 201, { property: propertyFromRow(database.prepare('SELECT * FROM properties WHERE id = ?').get(id)) });
+      await saveProperty(database, id, slug, property);
+      await audit(database, 'create', 'property', id);
+      return sendJson(response, 201, { property: propertyFromRow(await database.prepare('SELECT * FROM properties WHERE id = ?').get(id)) });
     }
 
     const propertyMatch = pathname.match(/^\/api\/admin\/properties\/([0-9a-f-]+)$/i);
     if (propertyMatch && request.method === 'PATCH') {
-      const row = database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyMatch[1]);
+      const row = await database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyMatch[1]);
       if (!row) throw new ApiError(404, 'property_not_found', 'Property not found.');
       const body = await readJson(request);
-      const property = validateProperty(body, propertyFromRow(row), database);
-      saveProperty(database, row.id, row.slug, property);
-      audit(database, 'update', 'property', row.id);
-      return sendJson(response, 200, { property: propertyFromRow(database.prepare('SELECT * FROM properties WHERE id = ?').get(row.id)) });
+      const property = await validateProperty(body, propertyFromRow(row), database);
+      await saveProperty(database, row.id, row.slug, property);
+      await audit(database, 'update', 'property', row.id);
+      return sendJson(response, 200, { property: propertyFromRow(await database.prepare('SELECT * FROM properties WHERE id = ?').get(row.id)) });
     }
 
     if (propertyMatch && request.method === 'DELETE') {
-      const row = database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyMatch[1]);
+      const row = await database.prepare('SELECT * FROM properties WHERE id = ?').get(propertyMatch[1]);
       if (!row) throw new ApiError(404, 'property_not_found', 'Property not found.');
-      for (const photo of JSON.parse(row.photos_json)) removeStoredPhoto(photo, filesDirectory);
-      database.prepare('DELETE FROM properties WHERE id = ?').run(row.id);
-      audit(database, 'delete', 'property', row.id);
+      for (const photo of JSON.parse(row.photos_json)) await removeStoredPhoto(photo, filesDirectory, photoStorage);
+      await database.prepare('DELETE FROM properties WHERE id = ?').run(row.id);
+      await audit(database, 'delete', 'property', row.id);
       return sendJson(response, 200, { deleted: true });
     }
 
     const photosMatch = pathname.match(/^\/api\/admin\/properties\/([0-9a-f-]+)\/photos$/i);
     if (photosMatch && request.method === 'POST') {
-      const row = database.prepare('SELECT * FROM properties WHERE id = ?').get(photosMatch[1]);
+      const row = await database.prepare('SELECT * FROM properties WHERE id = ?').get(photosMatch[1]);
       if (!row) throw new ApiError(404, 'property_not_found', 'Property not found.');
-      const body = await readJson(request);
-      const media = ALLOWED_IMAGE_TYPES.get(body.contentType);
-      if (!media || typeof body.data !== 'string' || body.data.length > 6 * 1024 * 1024) {
-        throw new ApiError(400, 'invalid_image', 'Upload a JPEG, PNG, or WebP image no larger than 4.5 MB.');
+      let contentType = String(request.headers['content-type'] || '').split(';')[0].toLowerCase();
+      let bytes;
+      if (contentType === 'application/json') {
+        const body = await readJson(request);
+        contentType = body.contentType;
+        if (typeof body.data !== 'string' || body.data.length > 6 * 1024 * 1024) {
+          throw new ApiError(400, 'invalid_image', 'Upload a JPEG, PNG, or WebP image no larger than 4 MB.');
+        }
+        bytes = Buffer.from(body.data, 'base64');
+      } else {
+        bytes = await readBytes(request, MAX_PROPERTY_PHOTO_BYTES);
       }
-      const bytes = Buffer.from(body.data, 'base64');
-      if (!bytes.length || bytes.length > 4.5 * 1024 * 1024 || !media.signature(bytes)) {
-        throw new ApiError(400, 'invalid_image_contents', 'The uploaded file does not match its image type or exceeds 4.5 MB.');
+      const media = ALLOWED_IMAGE_TYPES.get(contentType);
+      if (!media) throw new ApiError(400, 'invalid_image', 'Upload a JPEG, PNG, or WebP image no larger than 4 MB.');
+      if (!bytes.length || bytes.length > MAX_PROPERTY_PHOTO_BYTES || !media.signature(bytes)) {
+        throw new ApiError(400, 'invalid_image_contents', 'The uploaded file does not match its image type or exceeds 4 MB.');
       }
       const fileName = `${randomUUID()}${media.ext}`;
-      mkdirSync(filesDirectory, { recursive: true });
-      writeFileSync(resolve(filesDirectory, fileName), bytes, { flag: 'wx' });
-      const photos = [...JSON.parse(row.photos_json), `/uploads/properties/${fileName}`];
-      database.prepare('UPDATE properties SET photos_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(photos), row.id);
-      audit(database, 'add-photo', 'property', row.id);
+      const photoUrl = await storePhoto(fileName, bytes, contentType, filesDirectory, photoStorage);
+      const photos = [...JSON.parse(row.photos_json), photoUrl];
+      await database.prepare('UPDATE properties SET photos_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(photos), row.id);
+      await audit(database, 'add-photo', 'property', row.id);
       return sendJson(response, 201, { photos });
     }
 
     if (photosMatch && request.method === 'DELETE') {
-      const row = database.prepare('SELECT * FROM properties WHERE id = ?').get(photosMatch[1]);
+      const row = await database.prepare('SELECT * FROM properties WHERE id = ?').get(photosMatch[1]);
       if (!row) throw new ApiError(404, 'property_not_found', 'Property not found.');
       const body = await readJson(request);
       const photos = JSON.parse(row.photos_json);
       if (!photos.includes(body.photo)) throw new ApiError(404, 'photo_not_found', 'Photo not found on this property.');
-      removeStoredPhoto(body.photo, filesDirectory);
+      await removeStoredPhoto(body.photo, filesDirectory, photoStorage);
       const remaining = photos.filter((photo) => photo !== body.photo);
-      database.prepare('UPDATE properties SET photos_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(remaining), row.id);
-      audit(database, 'remove-photo', 'property', row.id);
+      await database.prepare('UPDATE properties SET photos_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(remaining), row.id);
+      await audit(database, 'remove-photo', 'property', row.id);
       return sendJson(response, 200, { photos: remaining });
     }
 
     const availabilityMatch = pathname.match(/^\/api\/admin\/properties\/([0-9a-f-]+)\/availability(?:\/([0-9a-f-]+))?$/i);
     if (availabilityMatch && request.method === 'GET') {
-      return sendJson(response, 200, { blocks: database.prepare('SELECT * FROM availability_blocks WHERE property_id = ? ORDER BY starts_on').all(availabilityMatch[1]) });
+      return sendJson(response, 200, { blocks: await database.prepare('SELECT * FROM availability_blocks WHERE property_id = ? ORDER BY starts_on').all(availabilityMatch[1]) });
     }
     if (availabilityMatch && request.method === 'POST' && !availabilityMatch[2]) {
-      const property = database.prepare('SELECT id FROM properties WHERE id = ?').get(availabilityMatch[1]);
+      const property = await database.prepare('SELECT id FROM properties WHERE id = ?').get(availabilityMatch[1]);
       if (!property) throw new ApiError(404, 'property_not_found', 'Property not found.');
       const body = await readJson(request);
       parseDateRange(body.startsOn, body.endsOn);
       const id = randomUUID();
       const reason = ['unavailable', 'maintenance'].includes(body.reason) ? body.reason : 'unavailable';
-      database.prepare('INSERT INTO availability_blocks (id, property_id, starts_on, ends_on, reason) VALUES (?, ?, ?, ?, ?)')
+      await database.prepare('INSERT INTO availability_blocks (id, property_id, starts_on, ends_on, reason) VALUES (?, ?, ?, ?, ?)')
         .run(id, property.id, body.startsOn, body.endsOn, reason);
-      audit(database, 'block-dates', 'property', property.id);
+      await audit(database, 'block-dates', 'property', property.id);
       return sendJson(response, 201, { id, propertyId: property.id, startsOn: body.startsOn, endsOn: body.endsOn, reason });
     }
     if (availabilityMatch && request.method === 'DELETE' && availabilityMatch[2]) {
-      const result = database.prepare('DELETE FROM availability_blocks WHERE id = ? AND property_id = ?').run(availabilityMatch[2], availabilityMatch[1]);
+      const result = await database.prepare('DELETE FROM availability_blocks WHERE id = ? AND property_id = ?').run(availabilityMatch[2], availabilityMatch[1]);
       if (!result.changes) throw new ApiError(404, 'availability_block_not_found', 'Date block not found.');
-      audit(database, 'unblock-dates', 'property', availabilityMatch[1]);
+      await audit(database, 'unblock-dates', 'property', availabilityMatch[1]);
       return sendJson(response, 200, { deleted: true });
     }
 
     if (pathname === '/api/admin/packages' && request.method === 'GET') {
-      return sendJson(response, 200, { packages: getAccommodationTypes(database) });
+      return sendJson(response, 200, { packages: await getAccommodationTypes(database) });
     }
     const packageMatch = pathname.match(/^\/api\/admin\/packages\/(.+)$/);
     if (packageMatch && request.method === 'PUT') {
       let type;
       try { type = decodeURIComponent(packageMatch[1]); } catch { throw new ApiError(400, 'invalid_package', 'Package type is invalid.'); }
-      const existing = getAccommodationType(type, database);
+      const existing = await getAccommodationType(type, database);
       if (!existing) throw new ApiError(404, 'package_not_found', 'Package type not found.');
       const body = await readJson(request);
       const starting = Number(body.startingPriceKes);
@@ -517,25 +567,25 @@ export function createApiHandler({ database, environment = process.env, uploadDi
         || minimum > starting || starting > maximum) {
         throw new ApiError(400, 'invalid_package_prices', 'Enter whole-number prices with minimum <= starting <= maximum.');
       }
-      database.prepare(`
+      await database.prepare(`
         INSERT INTO package_prices (accommodation_type, starting_price_kes, minimum_price_kes, maximum_price_kes, updated_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(accommodation_type) DO UPDATE SET starting_price_kes=excluded.starting_price_kes,
           minimum_price_kes=excluded.minimum_price_kes, maximum_price_kes=excluded.maximum_price_kes, updated_at=CURRENT_TIMESTAMP
       `).run(type, starting, minimum, maximum);
-      audit(database, 'update-price', 'package', type);
-      return sendJson(response, 200, { package: getAccommodationType(type, database) });
+      await audit(database, 'update-price', 'package', type);
+      return sendJson(response, 200, { package: await getAccommodationType(type, database) });
     }
 
     if (pathname === '/api/admin/bookings' && request.method === 'GET') {
-      const bookings = database.prepare('SELECT * FROM booking_requests ORDER BY created_at DESC LIMIT 500').all().map(bookingFromRow);
+      const bookings = (await database.prepare('SELECT * FROM booking_requests ORDER BY created_at DESC LIMIT 500').all()).map(bookingFromRow);
       return sendJson(response, 200, { bookings });
     }
     const bookingMatch = pathname.match(/^\/api\/admin\/bookings\/([0-9a-f-]+)$/i);
     if (bookingMatch && request.method === 'PATCH') {
       const body = await readJson(request);
       if (!VALID_BOOKING_STATUSES.has(body.status)) throw new ApiError(400, 'invalid_booking_status', 'Choose a valid booking status.');
-      const booking = database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(bookingMatch[1]);
+      const booking = await database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(bookingMatch[1]);
       if (!booking) throw new ApiError(404, 'booking_not_found', 'Booking request not found.');
       const propertyId = body.propertyId === undefined ? booking.property_id : (String(body.propertyId || '').trim() || null);
       const confirmedAmount = body.confirmedAmountKes == null || body.confirmedAmountKes === '' ? null : Number(body.confirmedAmountKes);
@@ -548,7 +598,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
       }
       if (body.status === 'confirmed') {
         if (!propertyId) throw new ApiError(400, 'confirmed_property_required', 'Assign a verified property before confirming the booking request.');
-        const property = database.prepare('SELECT * FROM properties WHERE id = ? AND is_published = 1').get(propertyId);
+        const property = await database.prepare('SELECT * FROM properties WHERE id = ? AND is_published = 1').get(propertyId);
         if (!property || property.availability_status !== 'available') {
           throw new ApiError(409, 'property_not_confirmed', 'The assigned property must be published and marked available by the administrator.');
         }
@@ -556,24 +606,24 @@ export function createApiHandler({ database, environment = process.env, uploadDi
           || booking.guests > property.guest_capacity) {
           throw new ApiError(400, 'property_booking_mismatch', 'The assigned property does not match this request location, type, and guest count.');
         }
-        const blocked = database.prepare(`SELECT 1 FROM availability_blocks
+        const blocked = await database.prepare(`SELECT 1 FROM availability_blocks
           WHERE property_id = ? AND starts_on < ? AND ends_on > ? LIMIT 1`).get(propertyId, booking.check_out, booking.check_in);
         if (blocked) throw new ApiError(409, 'dates_blocked', 'The assigned property is blocked for some requested dates.');
-        const overlapping = database.prepare(`SELECT 1 FROM booking_requests
+        const overlapping = await database.prepare(`SELECT 1 FROM booking_requests
           WHERE property_id = ? AND status = 'confirmed' AND id != ? AND check_in < ? AND check_out > ? LIMIT 1`)
           .get(propertyId, booking.id, booking.check_out, booking.check_in);
         if (overlapping) throw new ApiError(409, 'dates_already_booked', 'The property already has a confirmed booking for some requested dates.');
       }
-      const paid = database.prepare("SELECT 1 FROM payment_attempts WHERE booking_id = ? AND status = 'succeeded' LIMIT 1").get(booking.id);
+      const paid = await database.prepare("SELECT 1 FROM payment_attempts WHERE booking_id = ? AND status = 'succeeded' LIMIT 1").get(booking.id);
       if (paid && body.status !== 'confirmed') throw new ApiError(409, 'payment_already_verified', 'A verified payment exists; contact the guest before changing this booking status.');
-      database.prepare('UPDATE booking_requests SET status = ?, property_id = ?, confirmed_amount_kes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      await database.prepare('UPDATE booking_requests SET status = ?, property_id = ?, confirmed_amount_kes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
         .run(body.status, propertyId, confirmedAmount, bookingMatch[1]);
-      audit(database, 'update-status', 'booking', bookingMatch[1]);
-      return sendJson(response, 200, { booking: bookingFromRow(database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(bookingMatch[1])) });
+      await audit(database, 'update-status', 'booking', bookingMatch[1]);
+      return sendJson(response, 200, { booking: bookingFromRow(await database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(bookingMatch[1])) });
     }
 
     if (pathname === '/api/admin/payments' && request.method === 'GET') {
-      const payments = database.prepare(`SELECT payments.*, bookings.public_reference
+      const payments = await database.prepare(`SELECT payments.*, bookings.public_reference
         FROM payment_attempts payments JOIN booking_requests bookings ON bookings.id = payments.booking_id
         ORDER BY payments.created_at DESC LIMIT 500`).all();
       return sendJson(response, 200, { payments });
@@ -601,6 +651,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
       }
 
       if (pathname === '/api/health' && request.method === 'GET') {
+        await database.prepare('SELECT 1').get();
         sendJson(response, 200, { status: 'ok', database: 'connected' });
         return true;
       }
@@ -609,7 +660,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
         return true;
       }
       if (pathname === '/api/packages' && request.method === 'GET') {
-        sendJson(response, 200, { packages: getAccommodationTypes(database) });
+        sendJson(response, 200, { packages: await getAccommodationTypes(database) });
         return true;
       }
       if (pathname === '/api/properties' && request.method === 'GET') {
@@ -658,17 +709,20 @@ export function createApiHandler({ database, environment = process.env, uploadDi
           clauses.push('daily_price_kes <= ?');
           parameters.push(amount);
         }
-        const ordering = sort === 'price-desc' ? 'daily_price_kes DESC' : sort === 'name' ? 'name COLLATE NOCASE' : 'daily_price_kes ASC';
-        const properties = database.prepare(`SELECT * FROM properties WHERE ${clauses.join(' AND ')} ORDER BY ${ordering} LIMIT 100`)
-          .all(...parameters).map((row) => publicPropertyFromRow(row, database));
-        sendJson(response, 200, { properties, availabilityDisclaimer: 'Search results are enquiries only. Confirm property and date availability with Bjlive.' });
+        const ordering = sort === 'price-desc' ? 'daily_price_kes DESC' : sort === 'name' ? 'LOWER(name) ASC' : 'daily_price_kes ASC';
+        const rows = await database.prepare(`SELECT * FROM properties WHERE ${clauses.join(' AND ')} ORDER BY ${ordering} LIMIT 100`)
+          .all(...parameters);
+        const packageRates = await getAccommodationTypes(database);
+        const properties = rows.map((row) => publicPropertyFromRow(row, packageRates));
+        sendJson(response, 200, { properties, availabilityDisclaimer: 'Search results are enquiries only. Confirm property and date availability with Marevia.' });
         return true;
       }
       const publicProperty = pathname.match(/^\/api\/properties\/([a-z0-9-]+)$/i);
       if (publicProperty && request.method === 'GET') {
-        const row = database.prepare('SELECT * FROM properties WHERE (id = ? OR slug = ?) AND is_published = 1').get(publicProperty[1], publicProperty[1]);
+        const row = await database.prepare('SELECT * FROM properties WHERE (id = ? OR slug = ?) AND is_published = 1').get(publicProperty[1], publicProperty[1]);
         if (!row) throw new ApiError(404, 'property_not_found', 'Property not found.');
-        sendJson(response, 200, { property: publicPropertyFromRow(row, database) });
+        const packageRates = await getAccommodationTypes(database);
+        sendJson(response, 200, { property: publicPropertyFromRow(row, packageRates) });
         return true;
       }
       if (pathname === '/api/bookings' && request.method === 'POST') {
@@ -679,11 +733,11 @@ export function createApiHandler({ database, environment = process.env, uploadDi
       }
       const customerBooking = pathname.match(/^\/api\/bookings\/([A-Z0-9-]+)$/i);
       if (customerBooking && request.method === 'GET') {
-        const booking = database.prepare('SELECT * FROM booking_requests WHERE public_reference = ?').get(customerBooking[1]);
+        const booking = await database.prepare('SELECT * FROM booking_requests WHERE public_reference = ?').get(customerBooking[1]);
         if (!booking || !bookingAccessTokenMatches(request, booking)) {
           throw new ApiError(404, 'booking_not_found', 'Booking request not found.');
         }
-        const payments = database.prepare('SELECT status, amount_kes, created_at FROM payment_attempts WHERE booking_id = ? ORDER BY created_at DESC').all(booking.id);
+        const payments = await database.prepare('SELECT status, amount_kes, created_at FROM payment_attempts WHERE booking_id = ? ORDER BY created_at DESC').all(booking.id);
         sendJson(response, 200, { booking: bookingFromRow(booking), payments });
         return true;
       }
@@ -704,7 +758,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
         if (typeof checkoutId !== 'string' || checkoutId.length > 120) {
           throw new ApiError(400, 'invalid_mpesa_callback', 'The M-Pesa callback did not include a valid checkout reference.');
         }
-        const payment = database.prepare('SELECT * FROM payment_attempts WHERE checkout_request_id = ?').get(checkoutId);
+        const payment = await database.prepare('SELECT * FROM payment_attempts WHERE checkout_request_id = ?').get(checkoutId);
         if (!payment) return sendJson(response, 200, { ResultCode: 0, ResultDesc: 'No matching payment attempt.' });
         if (payment.status !== 'pending') return sendJson(response, 200, { ResultCode: 0, ResultDesc: 'Payment attempt already processed.' });
 
@@ -714,7 +768,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
           return sendJson(response, 202, { ResultCode: 0, ResultDesc: 'Provider status is pending reconciliation.' });
         }
         if (providerCode !== '0') {
-          database.prepare(`UPDATE payment_attempts SET status = 'failed', provider_result_code = ?, updated_at = CURRENT_TIMESTAMP
+          await database.prepare(`UPDATE payment_attempts SET status = 'failed', provider_result_code = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND status = 'pending'`).run(providerCode.slice(0, 40) || 'provider_failure', payment.id);
           return sendJson(response, 200, { ResultCode: 0, ResultDesc: 'Provider status recorded.' });
         }
@@ -723,7 +777,7 @@ export function createApiHandler({ database, environment = process.env, uploadDi
         }
 
         const metadata = Object.fromEntries((stkCallback.CallbackMetadata?.Item || []).map((item) => [item.Name, item.Value]));
-        const booking = database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(payment.booking_id);
+        const booking = await database.prepare('SELECT * FROM booking_requests WHERE id = ?').get(payment.booking_id);
         const receipt = String(metadata.MpesaReceiptNumber || '');
         let callbackPhone = '';
         try { callbackPhone = normalizeKenyanPhone(metadata.PhoneNumber); } catch { }
@@ -733,35 +787,35 @@ export function createApiHandler({ database, environment = process.env, uploadDi
         }
 
         try {
-          database.prepare(`UPDATE payment_attempts SET status = 'succeeded', receipt_number = ?, provider_result_code = '0', updated_at = CURRENT_TIMESTAMP
+          await database.prepare(`UPDATE payment_attempts SET status = 'succeeded', receipt_number = ?, provider_result_code = '0', updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND status = 'pending'`).run(receipt, payment.id);
         } catch (error) {
           if (!String(error.message).includes('UNIQUE')) throw error;
-          database.prepare(`UPDATE payment_attempts SET status = 'failed', provider_result_code = 'duplicate_receipt', updated_at = CURRENT_TIMESTAMP
+          await database.prepare(`UPDATE payment_attempts SET status = 'failed', provider_result_code = 'duplicate_receipt', updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND status = 'pending'`).run(payment.id);
         }
         return sendJson(response, 200, { ResultCode: 0, ResultDesc: 'Accepted.' });
       }
       if (pathname === '/api/payments/mpesa' && request.method === 'POST') {
         ensureOrigin(request);
-        if (!mpesaClient.configured) throw new ApiError(503, 'mpesa_not_configured', 'M-Pesa is not configured. No payment was started. Contact Bjlive to confirm price and availability.');
+        if (!mpesaClient.configured) throw new ApiError(503, 'mpesa_not_configured', 'M-Pesa is not configured. No payment was started. Contact Marevia to confirm price and availability.');
         const body = await readJson(request);
         const reference = String(body.bookingReference || '').trim();
         let customerPhone;
         try { customerPhone = normalizeKenyanPhone(body.customerPhone); } catch { throw new ApiError(400, 'invalid_phone', 'Enter the phone number used for this booking request.'); }
-        const booking = database.prepare('SELECT * FROM booking_requests WHERE public_reference = ?').get(reference);
+        const booking = await database.prepare('SELECT * FROM booking_requests WHERE public_reference = ?').get(reference);
         if (!booking || normalizeKenyanPhone(booking.customer_phone) !== customerPhone || !bookingAccessTokenMatches(request, booking)) {
           throw new ApiError(404, 'booking_not_found', 'No confirmed booking request matched those details.');
         }
         if (booking.status !== 'confirmed' || !booking.confirmed_amount_kes) {
-          throw new ApiError(409, 'booking_not_confirmed', 'Bjlive must confirm the property, date availability, and exact total before payment.');
+          throw new ApiError(409, 'booking_not_confirmed', 'Marevia must confirm the property, date availability, and exact total before payment.');
         }
         if (booking.confirmed_amount_kes < booking.estimated_minimum_kes || booking.confirmed_amount_kes > booking.estimated_maximum_kes) {
-          throw new ApiError(409, 'confirmed_amount_changed', 'The confirmed amount is outside the original estimate. Contact Bjlive to review the request.');
+          throw new ApiError(409, 'confirmed_amount_changed', 'The confirmed amount is outside the original estimate. Contact Marevia to review the request.');
         }
         const idempotencyKey = String(request.headers['idempotency-key'] || '').trim().slice(0, 100);
         if (!idempotencyKey) throw new ApiError(400, 'idempotency_key_required', 'A payment retry reference is required.');
-        const previous = database.prepare('SELECT * FROM payment_attempts WHERE idempotency_key = ?').get(idempotencyKey);
+        const previous = await database.prepare('SELECT * FROM payment_attempts WHERE idempotency_key = ?').get(idempotencyKey);
         if (previous) {
           if (previous.status === 'failed' || previous.status === 'cancelled') {
             throw new ApiError(409, 'payment_attempt_failed', 'That payment attempt did not complete. Refresh the request status before starting a new attempt.');
@@ -771,11 +825,11 @@ export function createApiHandler({ database, environment = process.env, uploadDi
             duplicate: true,
           });
         }
-        const inProgress = database.prepare("SELECT id FROM payment_attempts WHERE booking_id = ? AND status = 'pending'").get(booking.id);
+        const inProgress = await database.prepare("SELECT id FROM payment_attempts WHERE booking_id = ? AND status = 'pending'").get(booking.id);
         if (inProgress) throw new ApiError(409, 'payment_in_progress', 'A payment attempt is already in progress for this booking.');
 
         const paymentId = randomUUID();
-        database.prepare(`INSERT INTO payment_attempts (id, booking_id, provider, amount_kes, status, idempotency_key)
+        await database.prepare(`INSERT INTO payment_attempts (id, booking_id, provider, amount_kes, status, idempotency_key)
           VALUES (?, ?, 'mpesa', ?, 'pending', ?)`).run(paymentId, booking.id, booking.confirmed_amount_kes, idempotencyKey);
         try {
           const initiated = await mpesaClient.initiateStkPush({
@@ -784,16 +838,16 @@ export function createApiHandler({ database, environment = process.env, uploadDi
             accountReference: booking.public_reference,
             description: 'Accommodation booking',
           });
-          database.prepare(`UPDATE payment_attempts SET checkout_request_id = ?, merchant_request_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+          await database.prepare(`UPDATE payment_attempts SET checkout_request_id = ?, merchant_request_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
             .run(initiated.checkoutRequestId, initiated.merchantRequestId, paymentId);
           return sendJson(response, 202, {
             payment: { id: paymentId, status: 'pending', amountKes: booking.confirmed_amount_kes, customerMessage: initiated.customerMessage },
           });
         } catch (error) {
-          database.prepare("UPDATE payment_attempts SET status = 'failed', provider_result_code = 'initiation_error', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+          await database.prepare("UPDATE payment_attempts SET status = 'failed', provider_result_code = 'initiation_error', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
             .run(paymentId);
           console.error('M-Pesa initiation failed:', error.message);
-          throw new ApiError(502, 'payment_provider_error', 'M-Pesa did not start the payment request. No payment was confirmed; contact Bjlive before retrying.');
+          throw new ApiError(502, 'payment_provider_error', 'M-Pesa did not start the payment request. No payment was confirmed; contact Marevia before retrying.');
         }
       }
 
@@ -810,7 +864,18 @@ export function createApiHandler({ database, environment = process.env, uploadDi
   };
 }
 
-function removeStoredPhoto(photo, directory) {
+async function storePhoto(fileName, bytes, contentType, directory, storage) {
+  if (storage) return storage.put(fileName, bytes, contentType);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(resolve(directory, fileName), bytes, { flag: 'wx' });
+  return `/uploads/properties/${fileName}`;
+}
+
+async function removeStoredPhoto(photo, directory, storage) {
+  if (typeof photo === 'string' && /^https:\/\//i.test(photo)) {
+    if (storage) await storage.delete(photo);
+    return;
+  }
   const fileName = typeof photo === 'string' ? photo.split('/').pop() : '';
   if (!/^[0-9a-f-]+\.(jpg|png|webp)$/i.test(fileName)) return;
   const target = resolve(directory, fileName);
