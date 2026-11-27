@@ -171,6 +171,15 @@ try {
   const announcementGrid = document.querySelector('#announcement-grid');
   if (announcementResult.announcements.length) {
     announcementSection.hidden = false;
+    const latest = announcementResult.announcements[0];
+    const notice = document.querySelector('#announcement-notice');
+    const kindLabel = latest.kind === 'discount' ? 'Special discount' : latest.kind === 'event' ? 'Special event' : latest.kind === 'occasion' ? 'Special occasion' : 'Announcement';
+    notice.querySelector('[data-announcement-kind]').textContent = kindLabel;
+    notice.querySelector('[data-announcement-title]').textContent = latest.title;
+    notice.hidden = false;
+    notice.querySelector('[data-announcement-close]').addEventListener('click', () => {
+      notice.hidden = true;
+    });
     announcementResult.announcements.forEach((item) => {
       const card = makeElement('article', `announcement-card announcement-${item.kind}`);
       if (item.imageUrl) {

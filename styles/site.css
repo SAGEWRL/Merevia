@@ -296,6 +296,19 @@ html[data-theme="dark"] .draft-check { color: #b9e3cb; background: #284c3a; }
 }
 
 /* Public announcements */
+.announcement-notice { position: relative; z-index: 9; color: #fff; background: var(--brand-deep); border-bottom: 3px solid var(--accent); }
+.announcement-notice-inner { width: min(var(--page-width), calc(100% - 56px)); min-height: 68px; margin-inline: auto; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto 40px; align-items: center; gap: 13px; }
+.announcement-notice-icon { display: grid; width: 42px; height: 42px; place-items: center; color: var(--brand-deep); background: var(--accent); }
+.announcement-notice-icon svg { width: 21px; height: 21px; }
+.announcement-notice-copy { min-width: 0; display: grid; gap: 1px; }
+.announcement-notice-copy span { color: #e8d7a4; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.announcement-notice-copy strong { overflow: hidden; font-family: var(--serif); font-size: 18px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.announcement-notice-link { display: inline-flex; align-items: center; gap: 7px; color: #fff; font-size: 11px; font-weight: 800; text-decoration: none; }
+.announcement-notice-link:hover { color: #e8d7a4; }
+.announcement-notice-link svg { width: 14px; height: 14px; }
+.announcement-notice-close { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid rgba(255,255,255,.22); color: #fff; background: transparent; cursor: pointer; }
+.announcement-notice-close:hover { border-color: #fff; }
+.announcement-notice-close svg { width: 16px; height: 16px; }
 .announcements-section { padding-block: 70px 20px; }
 .announcement-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .announcement-card { min-height: 240px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-raised); }
@@ -310,6 +323,11 @@ html[data-theme="dark"] .draft-check { color: #b9e3cb; background: #284c3a; }
 .announcement-occasion { border-top: 3px solid #b66a55; }
 
 @media (max-width: 620px) {
+  .announcement-notice-inner { width: calc(100% - 28px); min-height: 62px; grid-template-columns: 34px minmax(0, 1fr) 34px; gap: 9px; }
+  .announcement-notice-icon { width: 34px; height: 34px; }
+  .announcement-notice-copy strong { font-size: 15px; }
+  .announcement-notice-link { display: none; }
+  .announcement-notice-close { width: 34px; height: 34px; }
   .announcements-section { padding-block: 48px 10px; }
   .announcement-grid { grid-template-columns: 1fr; }
 }
