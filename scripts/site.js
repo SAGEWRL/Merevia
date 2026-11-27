@@ -142,10 +142,6 @@ function setMobileMenu(open) {
 
 menuButton?.addEventListener('click', () => {
   const isExpanded = menuButton.getAttribute('aria-expanded') === 'true';
-  menuButton.setAttribute('aria-expanded', String(!isExpanded));
-  menuButton.setAttribute('aria-label', isExpanded ? 'Open navigation' : 'Close navigation');
-  menuButton.innerHTML = `<i data-lucide="${isExpanded ? 'menu' : 'x'}" aria-hidden="true"></i>`;
-  window.lucide?.createIcons();
   setMobileMenu(!isExpanded);
 });
 
@@ -153,8 +149,15 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && menuButton?.getAttribute('aria-expanded') === 'true') setMobileMenu(false);
 });
 
-window.addEventListener('resize', () => {
-  if (window.innerWidth > 620) setMobileMenu(false);
+const mobileNavBreakpoint = window.matchMedia('(min-width: 761px)');
+mobileNavBreakpoint.addEventListener('change', (event) => {
+  if (event.matches) setMobileMenu(false);
+});
+
+document.addEventListener('pointerdown', (event) => {
+  if (menuButton?.getAttribute('aria-expanded') !== 'true') return;
+  if (mobileNavigation?.contains(event.target) || menuButton?.contains(event.target)) return;
+  setMobileMenu(false);
 });
 
 mobileNavigation?.querySelectorAll('a').forEach((link) => {

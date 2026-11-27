@@ -481,6 +481,7 @@ html[data-theme="dark"] .safari-section { background: var(--surface-soft); }
 }
 @media (max-width: 760px) {
   .site-header { position: relative; }
+  .mobile-navigation { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; max-height: calc(100vh - 68px); overflow-y: auto; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px rgba(25, 52, 50, .12); }
   .nav-links { display: none; }
   .menu-toggle { display: inline-grid; flex: 0 0 40px; }
   .mobile-navigation { padding-inline: max(18px, calc((100% - var(--page-width)) / 2)); background: var(--surface); }
