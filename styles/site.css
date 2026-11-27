@@ -301,7 +301,7 @@ html[data-theme="dark"] .draft-check { color: #b9e3cb; background: #284c3a; }
 
 /* Public announcements */
 .announcement-notice { position: relative; z-index: 9; color: #fff; background: var(--brand-deep); border-bottom: 3px solid var(--accent); }
-.announcement-notice-inner { width: min(var(--page-width), calc(100% - 56px)); min-height: 68px; margin-inline: auto; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto 40px; align-items: center; gap: 13px; }
+.announcement-notice-inner { width: min(var(--page-width), calc(100% - 56px)); min-height: 68px; margin-inline: auto; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto auto 40px; align-items: center; gap: 13px; }
 .announcement-notice-icon { display: grid; width: 42px; height: 42px; place-items: center; color: var(--brand-deep); background: var(--accent); }
 .announcement-notice-icon svg { width: 21px; height: 21px; }
 .announcement-notice-copy { min-width: 0; display: grid; gap: 1px; }
@@ -310,13 +310,19 @@ html[data-theme="dark"] .draft-check { color: #b9e3cb; background: #284c3a; }
 .announcement-notice-link { display: inline-flex; align-items: center; gap: 7px; color: #fff; font-size: 11px; font-weight: 800; text-decoration: none; }
 .announcement-notice-link:hover { color: #e8d7a4; }
 .announcement-notice-link svg { width: 14px; height: 14px; }
+.announcement-notice-book { display: inline-flex; min-height: 38px; align-items: center; gap: 7px; padding: 0 12px; border: 1px solid rgba(255,255,255,.5); color: #fff; font-size: 11px; font-weight: 800; text-decoration: none; }
+.announcement-notice-book:hover { color: var(--brand-deep); border-color: var(--accent); background: var(--accent); }
+.announcement-notice-book svg { width: 14px; height: 14px; }
+.announcement-card-action { display: inline-flex; width: fit-content; align-items: center; gap: 7px; margin-top: 4px; color: var(--brand-deep); font-size: 11px; font-weight: 800; text-decoration: none; }
+.announcement-card-action:hover { text-decoration: underline; text-underline-offset: 4px; }
+.announcement-card-action svg { width: 14px; height: 14px; }
 .announcement-notice-close { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid rgba(255,255,255,.22); color: #fff; background: transparent; cursor: pointer; }
 .announcement-notice-close:hover { border-color: #fff; }
 .announcement-notice-close svg { width: 16px; height: 16px; }
 .announcements-section { padding-block: 70px 20px; }
 .announcement-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.announcement-card { min-height: 240px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-raised); }
-.announcement-card > img { width: 100%; height: 150px; display: block; object-fit: cover; }
+.announcement-card { min-height: 0; overflow: hidden; border: 1px solid var(--border); background: var(--surface-raised); }
+ .announcement-media { width: 100%; max-width: 100%; height: auto; max-height: none; display: block; object-fit: contain; background: transparent; }
 .announcement-card-body { display: grid; gap: 8px; padding: 20px; }
 .announcement-kind { color: var(--accent); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .announcement-card h3 { margin: 0; font-family: var(--serif); font-size: 23px; font-weight: 500; line-height: 1.15; }
@@ -327,10 +333,12 @@ html[data-theme="dark"] .draft-check { color: #b9e3cb; background: #284c3a; }
 .announcement-occasion { border-top: 3px solid #b66a55; }
 
 @media (max-width: 620px) {
-  .announcement-notice-inner { width: calc(100% - 28px); min-height: 62px; grid-template-columns: 34px minmax(0, 1fr) 34px; gap: 9px; }
+  .announcement-notice-inner { width: calc(100% - 28px); min-height: 62px; grid-template-columns: 34px minmax(0, 1fr) 34px; grid-template-rows: auto auto; gap: 7px 9px; padding-block: 8px; }
   .announcement-notice-icon { width: 34px; height: 34px; }
   .announcement-notice-copy strong { font-size: 15px; }
   .announcement-notice-link { display: none; }
+  .announcement-notice-book { grid-column: 1 / -1; grid-row: 2; min-height: 34px; justify-content: center; }
+  .announcement-notice-close { grid-column: 3; grid-row: 1; }
   .announcement-notice-close { width: 34px; height: 34px; }
   .announcements-section { padding-block: 48px 10px; }
   .announcement-grid { grid-template-columns: 1fr; }
