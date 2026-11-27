@@ -55,13 +55,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .theme-toggle, .menu-toggle { display: inline-grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--border); border-radius: 3px; color: var(--ink); background: var(--surface-raised); cursor: pointer; }
 .theme-toggle svg, .location-note svg, .placeholder-icon svg, .privacy-note svg, .aside-location svg, .contact-icon svg, .plate-pin { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .theme-toggle:hover, .menu-toggle:hover { border-color: var(--brand); }
-.menu-toggle { display: none; gap: 4px; align-content: center; }
+.menu-toggle { display: none; width: 36px; height: 36px; gap: 4px; align-content: center; border: 0; border-radius: 3px; background: transparent; }
+.menu-toggle:hover { background: var(--surface-soft); }
 .menu-toggle svg { width: 20px; height: 20px; stroke-width: 2; }
 .mobile-navigation[hidden] { display: none; }
-.menu-toggle span { display: block; width: 18px; height: 2px; flex: 0 0 2px; background: currentColor; transition: transform 180ms ease, opacity 180ms ease; transform-origin: center; }
-.menu-toggle.is-open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.menu-toggle span { display: block; width: 17px; height: 1.5px; flex: 0 0 1.5px; background: currentColor; transition: transform 220ms cubic-bezier(.2,.7,.2,1), opacity 160ms ease; transform-origin: center; }
+.menu-toggle.is-open span:nth-child(1) { transform: translateY(5.5px) rotate(45deg); }
 .menu-toggle.is-open span:nth-child(2) { opacity: 0; }
-.menu-toggle.is-open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+.menu-toggle.is-open span:nth-child(3) { transform: translateY(-5.5px) rotate(-45deg); }
 .mobile-navigation { display: grid; gap: 2px; padding: 0 28px 16px; }
 .mobile-navigation a { padding: 10px 4px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--border); }
 
@@ -246,13 +247,13 @@ html[data-theme="dark"] .draft-check { color: #b9e3cb; background: #284c3a; }
 }
 @media (max-width: 620px) {
   .page-width, .site-nav { width: min(100% - 36px, var(--page-width)); }
-  .menu-toggle { display: inline-grid; flex: 0 0 40px; }
+  .menu-toggle { display: inline-grid; flex: 0 0 36px; width: 36px; height: 36px; }
   .site-nav { min-height: 68px; }
   .brand { gap: 8px; font-size: 13px; }
   .brand-mark { width: 105px; height: 58px; }
   .brand-light { display: block; font-size: 10px; line-height: 1.2; }
   .nav-links { display: none; }
-  .menu-toggle { display: grid; }
+  .menu-toggle { display: grid; flex: 0 0 36px; width: 36px; height: 36px; }
   .mobile-navigation { padding-inline: 18px; }
   .home-hero { grid-template-columns: 1fr; gap: 32px; padding-block: 46px 35px; }
   .home-hero h1, .interior-heading h1, .contact-hero h1 { max-width: 10ch; font-size: 42px; }
@@ -349,7 +350,7 @@ body { background-color: var(--surface); }
 .nav-book { display: inline-flex; min-height: 40px; align-items: center; gap: 9px; margin-left: 10px; padding: 0 14px; color: #fff; background: var(--brand-deep); font-size: 11px; font-weight: 700; text-decoration: none; }
 .nav-book:hover { color: #fff; background: var(--brand); text-decoration: none; }
 .nav-book svg { width: 14px; height: 14px; }
-.menu-toggle { border-radius: 0; }
+.menu-toggle { border-radius: 3px; }
 .mobile-book { color: var(--brand-deep) !important; font-weight: 700; }
 .travel-hero { position: relative; min-height: 680px; overflow: hidden; color: #fff; background: #123b42; }
 .hero-media, .hero-shade { position: absolute; inset: 0; }
@@ -502,6 +503,7 @@ html[data-theme="dark"] .safari-section { background: var(--surface-soft); }
 }
 @media (max-width: 760px) {
   .site-header { position: relative; }
+  .menu-toggle { flex: 0 0 36px; width: 36px; height: 36px; }
   .mobile-navigation { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; max-height: calc(100vh - 68px); overflow-y: auto; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px rgba(25, 52, 50, .12); }
   .nav-links { display: none; }
   .menu-toggle { display: inline-grid; flex: 0 0 40px; }
