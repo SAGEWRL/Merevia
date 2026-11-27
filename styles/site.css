@@ -58,7 +58,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .menu-toggle { display: none; gap: 4px; align-content: center; }
 .menu-toggle svg { width: 20px; height: 20px; stroke-width: 2; }
 .mobile-navigation[hidden] { display: none; }
-.menu-toggle span { width: 17px; height: 1.5px; background: currentColor; }
+.menu-toggle span { display: block; width: 18px; height: 2px; flex: 0 0 2px; background: currentColor; transition: transform 180ms ease, opacity 180ms ease; transform-origin: center; }
+.menu-toggle.is-open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.menu-toggle.is-open span:nth-child(2) { opacity: 0; }
+.menu-toggle.is-open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 .mobile-navigation { display: grid; gap: 2px; padding: 0 28px 16px; }
 .mobile-navigation a { padding: 10px 4px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--border); }
 

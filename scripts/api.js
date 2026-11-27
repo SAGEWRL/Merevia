@@ -783,10 +783,9 @@ export function createApiHandler({ database, environment = process.env, uploadDi
         const rows = await database.prepare(`
           SELECT * FROM announcements
           WHERE is_published = 1
-            AND (starts_on IS NULL OR starts_on <= ?)
             AND (ends_on IS NULL OR ends_on >= ?)
           ORDER BY created_at DESC LIMIT 20
-        `).all(today, today);
+        `).all(today);
         sendJson(response, 200, { announcements: rows.map(announcementFromRow) });
         return true;
       }

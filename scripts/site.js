@@ -135,7 +135,8 @@ function setMobileMenu(open) {
   if (!menuButton || !mobileNavigation) return;
   menuButton.setAttribute('aria-expanded', String(open));
   menuButton.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
-  menuButton.innerHTML = `<i data-lucide="${open ? 'x' : 'menu'}" aria-hidden="true"></i>`;
+  menuButton.classList.toggle('is-open', open);
+  menuButton.innerHTML = '<span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>';
   mobileNavigation.hidden = !open;
   window.lucide?.createIcons();
 }
@@ -165,7 +166,10 @@ mobileNavigation?.querySelectorAll('a').forEach((link) => {
     mobileNavigation.hidden = true;
     menuButton?.setAttribute('aria-expanded', 'false');
     menuButton?.setAttribute('aria-label', 'Open navigation');
-    if (menuButton) menuButton.innerHTML = '<i data-lucide="menu" aria-hidden="true"></i>';
+    if (menuButton) {
+      menuButton.classList.remove('is-open');
+      menuButton.innerHTML = '<span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>';
+    }
     window.lucide?.createIcons();
   });
 });
