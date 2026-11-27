@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafe
 import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ACCOMMODATION_TYPES, LOCATIONS, getAccommodationType, getAccommodationTypes } from './catalog.js';
+import { ACCOMMODATION_TYPES, LOCATIONS, VILLA_ACCOMMODATION_TYPE, getAccommodationType, getAccommodationTypes } from './catalog.js';
 import { createMpesaClient, normalizeKenyanPhone } from './mpesa.js';
 
 const DAY_MS = 86_400_000;
@@ -152,6 +152,21 @@ function publicPropertyFromRow(row, packageRates) {
   };
 }
 
+function announcementFromRow(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    kind: row.kind,
+    imageUrl: row.image_url,
+    published: Boolean(row.is_published),
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function bookingFromRow(row) {
   return {
     id: row.id,
@@ -227,20 +242,28 @@ async function validateProperty(payload, previous, database) {
   const guestCapacity = Number(values.guestCapacity);
   const bedrooms = values.bedrooms === '' || values.bedrooms == null ? null : Number(values.bedrooms);
   const bathrooms = values.bathrooms === '' || values.bathrooms == null ? null : Number(values.bathrooms);
+  const isVilla = accommodationType === VILLA_ACCOMMODATION_TYPE;
   const description = String(values.description ?? '').trim();
   const amenities = values.amenities ?? [];
 
   if (!name || name.length > 120) throw new ApiError(400, 'invalid_name', 'Property name is required and must be under 120 characters.');
   if (!LOCATIONS.includes(location)) throw new ApiError(400, 'invalid_location', 'Choose a supported location.');
   if (!rate) throw new ApiError(400, 'invalid_accommodation_type', 'Choose a supported accommodation type.');
-  if (!Number.isSafeInteger(dailyPriceKes) || dailyPriceKes < rate.minimumPriceKes || dailyPriceKes > rate.maximumPriceKes) {
-    throw new ApiError(400, 'invalid_price', `Daily price must be within KSh ${rate.minimumPriceKes.toLocaleString()}–${rate.maximumPriceKes.toLocaleString()}.`);
+  if (!Number.isSafeInteger(dailyPriceKes) || dailyPriceKes < 1 || dailyPriceKes > 1_000_000
+    || (!isVilla && (dailyPriceKes < rate.minimumPriceKes || dailyPriceKes > rate.maximumPriceKes))) {
+    const message = isVilla
+      ? 'Enter a whole-villa daily price from KSh 1 to KSh 1,000,000.'
+      : `Daily price must be within KSh ${rate.minimumPriceKes.toLocaleString()}–${rate.maximumPriceKes.toLocaleString()}.`;
+    throw new ApiError(400, 'invalid_price', message);
   }
   if (!Number.isSafeInteger(guestCapacity) || guestCapacity < 1 || guestCapacity > 30) {
     throw new ApiError(400, 'invalid_capacity', 'Guest capacity must be from 1 to 30.');
   }
   if (bedrooms !== null && (!Number.isSafeInteger(bedrooms) || bedrooms < 0 || bedrooms > 20)) {
     throw new ApiError(400, 'invalid_bedrooms', 'Enter a valid bedroom count.');
+  }
+  if (isVilla && (bedrooms === null || bedrooms < 3)) {
+    throw new ApiError(400, 'invalid_bedrooms', 'A villa must have at least 3 bedrooms.');
   }
   if (bathrooms !== null && (!Number.isSafeInteger(bathrooms) || bathrooms < 0 || bathrooms > 20)) {
     throw new ApiError(400, 'invalid_bathrooms', 'Enter a valid bathroom count.');
@@ -563,6 +586,89 @@ export function createApiHandler({ database, environment = process.env, uploadDi
       return sendJson(response, 200, { deleted: true });
     }
 
+    if (pathname === '/api/admin/announcements' && request.method === 'GET') {
+      const rows = await database.prepare('SELECT * FROM announcements ORDER BY created_at DESC').all();
+      return sendJson(response, 200, { announcements: rows.map(announcementFromRow) });
+    }
+
+    if (pathname === '/api/admin/announcements' && request.method === 'POST') {
+      const body = await readJson(request);
+      const title = String(body.title || '').trim();
+      const message = String(body.body || '').trim();
+      const kind = ['discount', 'event', 'occasion', 'announcement'].includes(body.kind) ? body.kind : 'announcement';
+      if (!title || title.length > 120) throw new ApiError(400, 'invalid_announcement_title', 'Enter an announcement title of 120 characters or fewer.');
+      if (!message || message.length > 1000) throw new ApiError(400, 'invalid_announcement_body', 'Enter an announcement message of 1000 characters or fewer.');
+      if (body.startsOn && !validDate(body.startsOn)) throw new ApiError(400, 'invalid_announcement_start', 'Enter a valid start date.');
+      if (body.endsOn && !validDate(body.endsOn)) throw new ApiError(400, 'invalid_announcement_end', 'Enter a valid end date.');
+      if (body.startsOn && body.endsOn && body.endsOn < body.startsOn) throw new ApiError(400, 'invalid_announcement_dates', 'The end date must be on or after the start date.');
+
+      let imageUrl = null;
+      if (typeof body.imageData === 'string' && body.imageData) {
+        if (body.imageData.length > 6 * 1024 * 1024) throw new ApiError(413, 'announcement_image_too_large', 'The image is too large.');
+        const contentType = String(body.imageType || '').split(';')[0].toLowerCase();
+        const media = ALLOWED_MEDIA_TYPES.get(contentType);
+        if (!media || !['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
+          throw new ApiError(400, 'invalid_announcement_image', 'Upload a JPEG, PNG, or WebP image no larger than 4 MB.');
+        }
+        const bytes = Buffer.from(body.imageData, 'base64');
+        if (!bytes.length || bytes.length > MAX_PROPERTY_PHOTO_BYTES || !media.signature(bytes)) {
+          throw new ApiError(400, 'invalid_announcement_image', 'The uploaded image is invalid or too large.');
+        }
+        imageUrl = await storePhoto(`${randomUUID()}${media.ext}`, bytes, contentType, filesDirectory, photoStorage);
+      }
+
+      const id = randomUUID();
+      await database.prepare(`
+        INSERT INTO announcements (id, title, body, kind, image_url, is_published, starts_on, ends_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, title, message, kind, imageUrl, body.published ? 1 : 0, body.startsOn || null, body.endsOn || null);
+      await audit(database, 'create', 'announcement', id);
+      return sendJson(response, 201, { announcement: announcementFromRow(await database.prepare('SELECT * FROM announcements WHERE id = ?').get(id)) });
+    }
+
+    const announcementMatch = pathname.match(/^\/api\/admin\/announcements\/([0-9a-f-]+)$/i);
+    if (announcementMatch && request.method === 'PATCH') {
+      const row = await database.prepare('SELECT * FROM announcements WHERE id = ?').get(announcementMatch[1]);
+      if (!row) throw new ApiError(404, 'announcement_not_found', 'Announcement not found.');
+      const body = await readJson(request);
+      const title = String(body.title ?? row.title).trim();
+      const message = String(body.body ?? row.body).trim();
+      const kind = ['discount', 'event', 'occasion', 'announcement'].includes(body.kind) ? body.kind : row.kind;
+      if (!title || title.length > 120) throw new ApiError(400, 'invalid_announcement_title', 'Enter an announcement title of 120 characters or fewer.');
+      if (!message || message.length > 1000) throw new ApiError(400, 'invalid_announcement_body', 'Enter an announcement message of 1000 characters or fewer.');
+      if (body.startsOn && !validDate(body.startsOn)) throw new ApiError(400, 'invalid_announcement_start', 'Enter a valid start date.');
+      if (body.endsOn && !validDate(body.endsOn)) throw new ApiError(400, 'invalid_announcement_end', 'Enter a valid end date.');
+      if (body.startsOn && body.endsOn && body.endsOn < body.startsOn) throw new ApiError(400, 'invalid_announcement_dates', 'The end date must be on or after the start date.');
+      let imageUrl = row.image_url;
+      if (typeof body.imageData === 'string' && body.imageData) {
+        if (body.imageData.length > 6 * 1024 * 1024) throw new ApiError(413, 'announcement_image_too_large', 'The image is too large.');
+        const contentType = String(body.imageType || '').split(';')[0].toLowerCase();
+        const media = ALLOWED_MEDIA_TYPES.get(contentType);
+        if (!media || !['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
+          throw new ApiError(400, 'invalid_announcement_image', 'Upload a JPEG, PNG, or WebP image no larger than 4 MB.');
+        }
+        const bytes = Buffer.from(body.imageData, 'base64');
+        if (!bytes.length || bytes.length > MAX_PROPERTY_PHOTO_BYTES || !media.signature(bytes)) {
+          throw new ApiError(400, 'invalid_announcement_image', 'The uploaded image is invalid or too large.');
+        }
+        imageUrl = await storePhoto(`${randomUUID()}${media.ext}`, bytes, contentType, filesDirectory, photoStorage);
+        await removeStoredPhoto(row.image_url, filesDirectory, photoStorage);
+      }
+      await database.prepare(`UPDATE announcements SET title = ?, body = ?, kind = ?, image_url = ?, is_published = ?, starts_on = ?, ends_on = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+        .run(title, message, kind, imageUrl, body.published ? 1 : 0, body.startsOn || null, body.endsOn || null, row.id);
+      await audit(database, 'update', 'announcement', row.id);
+      return sendJson(response, 200, { announcement: announcementFromRow(await database.prepare('SELECT * FROM announcements WHERE id = ?').get(row.id)) });
+    }
+
+    if (announcementMatch && request.method === 'DELETE') {
+      const row = await database.prepare('SELECT * FROM announcements WHERE id = ?').get(announcementMatch[1]);
+      if (!row) throw new ApiError(404, 'announcement_not_found', 'Announcement not found.');
+      await removeStoredPhoto(row.image_url, filesDirectory, photoStorage);
+      await database.prepare('DELETE FROM announcements WHERE id = ?').run(row.id);
+      await audit(database, 'delete', 'announcement', row.id);
+      return sendJson(response, 200, { deleted: true });
+    }
+
     if (pathname === '/api/admin/packages' && request.method === 'GET') {
       return sendJson(response, 200, { packages: await getAccommodationTypes(database) });
     }
@@ -672,6 +778,19 @@ export function createApiHandler({ database, environment = process.env, uploadDi
         sendJson(response, 200, { locations: LOCATIONS });
         return true;
       }
+      if (pathname === '/api/announcements' && request.method === 'GET') {
+        const today = new Date().toISOString().slice(0, 10);
+        const rows = await database.prepare(`
+          SELECT * FROM announcements
+          WHERE is_published = 1
+            AND (starts_on IS NULL OR starts_on <= ?)
+            AND (ends_on IS NULL OR ends_on >= ?)
+          ORDER BY created_at DESC LIMIT 20
+        `).all(today, today);
+        sendJson(response, 200, { announcements: rows.map(announcementFromRow) });
+        return true;
+      }
+
       if (pathname === '/api/packages' && request.method === 'GET') {
         sendJson(response, 200, { packages: await getAccommodationTypes(database) });
         return true;

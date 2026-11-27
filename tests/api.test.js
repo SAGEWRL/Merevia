@@ -45,12 +45,13 @@ test('health and public catalogue return the exact owner-provided values with no
 
   const catalog = await request('/api/packages');
   const { packages } = await catalog.json();
-  assert.equal(packages.length, 5);
+  assert.equal(packages.length, 6);
   assert.deepEqual(packages.map((item) => [item.startingPriceKes, item.minimumPriceKes, item.maximumPriceKes]), [
     [2000, 2000, 4000],
     [2500, 2500, 5000],
     [3000, 3000, 5000],
     [4000, 4000, 5000],
+    [8000, 8000, 10000],
     [8000, 8000, 10000],
   ]);
 
@@ -210,6 +211,43 @@ test('property changes require an admin session and published listings are searc
   assert.equal(created.status, 201);
   const property = (await created.json()).property;
 
+  const villaResponse = await request('/api/admin/properties', {
+    method: 'POST',
+    headers: adminHeaders,
+    body: {
+      name: 'Whole villa test listing',
+      location: 'Mombasa',
+      accommodationType: 'Villa (3+ bedrooms)',
+      dailyPriceKes: 35000,
+      guestCapacity: 10,
+      bedrooms: 5,
+      availabilityStatus: 'available',
+      priceConfirmed: true,
+      published: true,
+    },
+  });
+  assert.equal(villaResponse.status, 201);
+  const villa = (await villaResponse.json()).property;
+  assert.equal(villa.bedrooms, 5);
+
+  const villaBooking = await request('/api/bookings', {
+    method: 'POST',
+    body: {
+      propertyId: villa.id,
+      location: 'Mombasa',
+      accommodationType: 'Villa (3+ bedrooms)',
+      checkIn: '2027-03-10',
+      checkOut: '2027-03-12',
+      guests: 8,
+      customerName: 'Villa Guest',
+      customerPhone: '+254700000002',
+    },
+  });
+  assert.equal(villaBooking.status, 201);
+  const villaBookingResult = await villaBooking.json();
+  assert.equal(villaBookingResult.booking.estimatedMinimumKes, 70000);
+  assert.equal(villaBookingResult.booking.estimatedMaximumKes, 70000);
+
   const unpublishedSearch = await request('/api/properties?location=Diani');
   assert.deepEqual((await unpublishedSearch.json()).properties, []);
 
@@ -352,6 +390,33 @@ test('schema migrations apply and roll back without adding records', () => {
   migrateLatest(migrationDatabase);
   assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM properties').get().count, 0);
   assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM booking_requests').get().count, 0);
+  assert.equal(rollbackLastMigration(migrationDatabase), '008_announcements');
+
+  migrationDatabase.prepare(`INSERT INTO properties (
+    id, slug, name, location, accommodation_type, daily_price_kes, guest_capacity, bedrooms
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    'migration-property', 'migration-property', 'Migration property', 'Diani', 'Two-bedroom accommodation', 9000, 6, 2,
+  );
+  migrationDatabase.prepare(`INSERT INTO booking_requests (
+    id, public_reference, property_id, accommodation_type, location, check_in, check_out, duration_days,
+    guests, customer_name, customer_phone, estimated_minimum_kes, estimated_maximum_kes
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    'migration-booking', 'MIG-001', 'migration-property', 'Two-bedroom accommodation', 'Diani',
+    '2027-03-10', '2027-03-11', 1, 2, 'Migration guest', '+254700000003', 8000, 10000,
+  );
+  migrationDatabase.prepare(`INSERT INTO availability_blocks (id, property_id, starts_on, ends_on)
+    VALUES (?, ?, ?, ?)`).run('migration-block', 'migration-property', '2027-03-12', '2027-03-13');
+  migrationDatabase.prepare(`INSERT INTO payment_attempts (id, booking_id, provider, amount_kes)
+    VALUES (?, ?, ?, ?)`).run('migration-payment', 'migration-booking', 'mpesa', 9000);
+
+  migrateLatest(migrationDatabase);
+  assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM properties').get().count, 1);
+  assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM booking_requests').get().count, 1);
+  assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM availability_blocks').get().count, 1);
+  assert.equal(migrationDatabase.prepare('SELECT count(*) AS count FROM payment_attempts').get().count, 1);
+  assert.equal(migrationDatabase.prepare('SELECT name FROM properties WHERE id = ?').get('migration-property').name, 'Migration property');
+  assert.equal(rollbackLastMigration(migrationDatabase), '008_announcements');
+  assert.equal(rollbackLastMigration(migrationDatabase), '007_villa_accommodation');
   assert.equal(rollbackLastMigration(migrationDatabase), '006_admin_login_attempts');
   assert.equal(rollbackLastMigration(migrationDatabase), '005_admin_sessions');
   assert.equal(rollbackLastMigration(migrationDatabase), '004_booking_access_tokens');

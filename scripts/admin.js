@@ -65,7 +65,7 @@ async function enterAdmin() {
   adminPanel.hidden = false;
   logoutButton.hidden = false;
   showNotice('Loading business records…');
-  await Promise.all([loadProperties(), loadPackages()]);
+  await Promise.all([loadProperties(), loadPackages(), loadAnnouncements()]);
   await Promise.all([loadBookings(), loadPayments()]);
   showNotice('Business records are up to date.');
 }
@@ -318,6 +318,130 @@ function renderBookings(bookings) {
     messageCell.append(messageLink);
   }
 }
+
+async function loadAnnouncements() {
+  const result = await request('/api/admin/announcements');
+  const list = document.querySelector('#announcement-list');
+  list.replaceChildren();
+  if (!result.announcements.length) {
+    list.append(element('p', 'admin-empty', 'No announcements yet. Create a discount, event, occasion, or general update.'));
+    return;
+  }
+  for (const item of result.announcements) {
+    const card = element('article', 'admin-record');
+    const head = element('div', 'admin-record-head');
+    const summary = document.createElement('div');
+    summary.append(element('h3', '', item.title));
+    summary.append(element('p', 'admin-record-meta', `${item.kind[0].toUpperCase() + item.kind.slice(1)} · ${item.startsOn || 'No start date'} to ${item.endsOn || 'No end date'}`));
+    const status = element('span', 'admin-status-pill', item.published ? 'Published' : 'Draft');
+    status.dataset.status = item.published ? 'published' : 'unpublished';
+    head.append(summary, status);
+    card.append(head, element('p', 'admin-record-meta', item.body));
+    if (item.imageUrl) {
+      const image = document.createElement('img');
+      image.src = item.imageUrl;
+      image.alt = '';
+      image.loading = 'lazy';
+      image.className = 'admin-announcement-image';
+      card.append(image);
+    }
+    const controls = element('div', 'admin-record-controls');
+    const edit = element('button', 'admin-button', 'Edit');
+    edit.type = 'button';
+    edit.dataset.editAnnouncement = item.id;
+    edit.dataset.announcement = JSON.stringify(item);
+    const remove = element('button', 'admin-button admin-button-quiet', 'Remove');
+    remove.type = 'button';
+    remove.dataset.deleteAnnouncement = item.id;
+    controls.append(edit, remove);
+    card.append(controls);
+    list.append(card);
+  }
+}
+
+function resetAnnouncementForm() {
+  const form = document.querySelector('#announcement-form');
+  form.reset();
+  form.elements.namedItem('id').value = '';
+  form.elements.namedItem('kind').value = 'announcement';
+  document.querySelector('#announcement-form-title').textContent = 'New announcement';
+  document.querySelector('#close-announcement-form').hidden = true;
+  document.querySelector('#cancel-announcement-form').hidden = true;
+}
+
+const announcementForm = document.querySelector('#announcement-form');
+const announcementList = document.querySelector('#announcement-list');
+
+document.querySelector('#close-announcement-form').addEventListener('click', resetAnnouncementForm);
+document.querySelector('#cancel-announcement-form').addEventListener('click', resetAnnouncementForm);
+
+announcementForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const submit = announcementForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    const values = new FormData(announcementForm);
+    const id = values.get('id');
+    const payload = {
+      title: values.get('title'),
+      kind: values.get('kind'),
+      body: values.get('body'),
+      startsOn: values.get('startsOn') || null,
+      endsOn: values.get('endsOn') || null,
+      published: values.has('published'),
+    };
+    const file = values.get('image');
+    if (file instanceof File && file.size) {
+      if (file.size > 4 * 1024 * 1024) throw new Error(`${file.name} is larger than 4 MB.`);
+      payload.imageData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.onerror = () => reject(new Error('The image could not be read.'));
+        reader.readAsDataURL(file);
+      });
+      payload.imageType = file.type;
+    }
+    await request(id ? `/api/admin/announcements/${id}` : '/api/admin/announcements', {
+      method: id ? 'PATCH' : 'POST',
+      body: JSON.stringify(payload),
+    });
+    resetAnnouncementForm();
+    await loadAnnouncements();
+    showNotice(id ? 'Announcement updated.' : 'Announcement saved.');
+  } catch (error) {
+    showNotice(error.message, 'error');
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+announcementList.addEventListener('click', async (event) => {
+  const editId = event.target.dataset.editAnnouncement;
+  const deleteId = event.target.dataset.deleteAnnouncement;
+  try {
+    if (editId) {
+      const item = JSON.parse(event.target.dataset.announcement);
+      announcementForm.elements.namedItem('id').value = item.id;
+      announcementForm.elements.namedItem('title').value = item.title;
+      announcementForm.elements.namedItem('kind').value = item.kind;
+      announcementForm.elements.namedItem('body').value = item.body;
+      announcementForm.elements.namedItem('startsOn').value = item.startsOn || '';
+      announcementForm.elements.namedItem('endsOn').value = item.endsOn || '';
+      announcementForm.elements.namedItem('published').checked = item.published;
+      document.querySelector('#announcement-form-title').textContent = 'Edit announcement';
+      document.querySelector('#close-announcement-form').hidden = false;
+      document.querySelector('#cancel-announcement-form').hidden = false;
+      announcementForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (deleteId && window.confirm('Remove this announcement?')) {
+      await request(`/api/admin/announcements/${deleteId}`, { method: 'DELETE' });
+      resetAnnouncementForm();
+      await loadAnnouncements();
+      showNotice('Announcement removed.');
+    }
+  } catch (error) {
+    showNotice(error.message, 'error');
+  }
+});
 
 async function loadBookings() {
   const result = await request('/api/admin/bookings');

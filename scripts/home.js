@@ -109,7 +109,7 @@ function showMessage(message, kind = 'info') {
 
 async function loadFeaturedProperties() {
   const result = await fetchJson('/api/properties?sort=price-asc');
-  renderResults(result.properties.slice(0, 3), propertyGrid);
+  renderResults(result.properties, propertyGrid);
   propertyEmpty.hidden = result.properties.length > 0;
 }
 
@@ -166,6 +166,33 @@ document.querySelectorAll('[data-location]').forEach((button) => {
 });
 
 try {
+  const announcementResult = await fetchJson('/api/announcements');
+  const announcementSection = document.querySelector('#announcements');
+  const announcementGrid = document.querySelector('#announcement-grid');
+  if (announcementResult.announcements.length) {
+    announcementSection.hidden = false;
+    announcementResult.announcements.forEach((item) => {
+      const card = makeElement('article', `announcement-card announcement-${item.kind}`);
+      if (item.imageUrl) {
+        const image = document.createElement('img');
+        image.src = item.imageUrl;
+        image.alt = '';
+        image.loading = 'lazy';
+        card.append(image);
+      }
+      const body = makeElement('div', 'announcement-card-body');
+      body.append(makeElement('span', 'announcement-kind', item.kind === 'discount' ? 'Special discount' : item.kind === 'event' ? 'Special event' : item.kind === 'occasion' ? 'Special occasion' : 'Announcement'));
+      body.append(makeElement('h3', '', item.title));
+      body.append(makeElement('p', '', item.body));
+      if (item.startsOn || item.endsOn) {
+        const dates = item.startsOn && item.endsOn ? `${item.startsOn} – ${item.endsOn}` : item.startsOn ? `From ${item.startsOn}` : `Until ${item.endsOn}`;
+        body.append(makeElement('small', 'announcement-dates', dates));
+      }
+      card.append(body);
+      announcementGrid.append(card);
+    });
+  }
+
   const packageResult = await fetchJson('/api/packages');
   packageRates = packageResult.packages;
   renderRates();

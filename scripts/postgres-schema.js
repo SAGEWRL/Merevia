@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS properties (
   slug TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   location TEXT NOT NULL CHECK (location IN ('Mombasa', 'Diani', 'Malindi', 'Kisumu')),
-  accommodation_type TEXT NOT NULL CHECK (accommodation_type IN ('Single room', 'Double room', 'BnB studio', 'One-bedroom accommodation', 'Two-bedroom accommodation')),
+  accommodation_type TEXT NOT NULL CHECK (accommodation_type IN ('Single room', 'Double room', 'BnB studio', 'One-bedroom accommodation', 'Two-bedroom accommodation', 'Villa (3+ bedrooms)')),
   daily_price_kes INTEGER NOT NULL CHECK (daily_price_kes > 0),
   price_confirmed INTEGER NOT NULL DEFAULT 0 CHECK (price_confirmed IN (0, 1)),
   description TEXT NOT NULL DEFAULT '',
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS booking_requests (
   id TEXT PRIMARY KEY,
   public_reference TEXT NOT NULL UNIQUE,
   property_id TEXT REFERENCES properties(id) ON DELETE SET NULL,
-  accommodation_type TEXT NOT NULL CHECK (accommodation_type IN ('Single room', 'Double room', 'BnB studio', 'One-bedroom accommodation', 'Two-bedroom accommodation')),
+  accommodation_type TEXT NOT NULL CHECK (accommodation_type IN ('Single room', 'Double room', 'BnB studio', 'One-bedroom accommodation', 'Two-bedroom accommodation', 'Villa (3+ bedrooms)')),
   location TEXT NOT NULL CHECK (location IN ('Mombasa', 'Diani', 'Malindi', 'Kisumu')),
   check_in TEXT NOT NULL,
   check_out TEXT NOT NULL,
@@ -109,6 +109,21 @@ CREATE TABLE IF NOT EXISTS admin_login_attempts (
 );
 
 CREATE INDEX IF NOT EXISTS admin_login_attempts_expiry_idx ON admin_login_attempts(window_ends_at);
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('discount', 'event', 'occasion', 'announcement')),
+  image_url TEXT,
+  is_published INTEGER NOT NULL DEFAULT 0 CHECK (is_published IN (0, 1)),
+  starts_on TEXT,
+  ends_on TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS announcements_public_idx ON announcements(is_published, starts_on, ends_on, created_at);
 `;
 
 export const D1_SCHEMA = POSTGRES_SCHEMA;

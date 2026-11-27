@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#163943">
-    <title>Admin | Marevia Travels and Booking</title>
+    <title>Admin | Marevia Holiday Experiences</title>
     <link rel="stylesheet" href="../styles/site.css">
     <link rel="stylesheet" href="../styles/admin.css">
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
@@ -14,7 +14,7 @@
   <body>
     <header class="site-header admin-header">
       <nav class="site-nav" aria-label="Administrator navigation">
-        <a class="brand" href="/" aria-label="Marevia Travels and Booking home"><img class="brand-mark" src="/images/marevia-mark.svg" alt=""><span class="brand-name"><strong>MAREVIA</strong><span class="brand-light">Travels and Booking</span></span></a>
+        <a class="brand" href="/" aria-label="Marevia Holiday Experiences home"><img class="brand-mark" src="/images/marevia-mark.svg" alt=""><span class="brand-name"><strong>MAREVIA</strong><span class="brand-light">Holiday Experiences</span></span></a>
         <a class="nav-link" href="/">View website <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
       </nav>
     </header>
@@ -30,7 +30,7 @@
       </section>
 
       <div id="admin-panel" hidden>
-        <nav class="admin-tabs" aria-label="Management sections"><a href="#properties">Properties</a><a href="#prices">Package prices</a><a href="#requests">Booking requests</a><a href="#payments">Payments</a></nav>
+        <nav class="admin-tabs" aria-label="Management sections"><a href="#properties">Properties</a><a href="#prices">Package prices</a><a href="#announcements">Announcements</a><a href="#requests">Booking requests</a><a href="#payments">Payments</a></nav>
 
         <section class="admin-section" id="properties" aria-labelledby="properties-title">
           <div class="admin-section-heading"><div><p class="eyebrow">Inventory</p><h2 id="properties-title">Accommodation properties</h2><p>New listings remain unpublished until you approve them.</p></div><button class="admin-button admin-button-primary" id="new-property-button" type="button">Add property</button></div>
@@ -57,6 +57,24 @@
         <section class="admin-section" id="prices" aria-labelledby="prices-title">
           <div class="admin-section-heading"><div><p class="eyebrow">Rates</p><h2 id="prices-title">Accommodation package prices</h2><p>These are public starting prices and ranges. Changes are stored in the database.</p></div></div>
           <form class="admin-rate-list" id="rates-form"><div class="admin-rate-heading"><span>Accommodation type</span><span>Starting price</span><span>Minimum</span><span>Maximum</span><span></span></div><div id="rate-rows"><p class="admin-empty">Loading package rates…</p></div><button class="admin-button admin-button-primary" type="submit">Save price changes</button></form>
+        </section>
+
+        <section class="admin-section" id="announcements" aria-labelledby="announcements-title">
+          <div class="admin-section-heading"><div><p class="eyebrow">Offers and updates</p><h2 id="announcements-title">Announcements and advertisements</h2><p>Publish discounts, special events, holidays, and other public notices with an optional image.</p></div></div>
+          <div class="admin-layout">
+            <form class="admin-form" id="announcement-form">
+              <div class="admin-form-heading"><h3 id="announcement-form-title">New announcement</h3><button class="admin-icon-button" id="close-announcement-form" type="button" aria-label="Clear announcement form" hidden>×</button></div>
+              <input type="hidden" name="id">
+              <label>Title<input name="title" maxlength="120" required></label>
+              <label>Type<select name="kind" required><option value="announcement">Announcement</option><option value="discount">Discount</option><option value="event">Special event</option><option value="occasion">Special occasion</option></select></label>
+              <label>Message<textarea name="body" rows="5" maxlength="1000" required></textarea></label>
+              <div class="admin-fields-two"><label>Starts<input name="startsOn" type="date"></label><label>Ends<input name="endsOn" type="date"></label></div>
+              <label>Image <span class="admin-hint">JPEG, PNG, or WebP, up to 4 MB</span><input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label>
+              <label class="admin-check"><input name="published" type="checkbox"> Publish on the public website</label>
+              <div class="admin-form-actions"><button class="admin-button admin-button-primary" type="submit">Save announcement</button><button class="admin-button admin-button-quiet" id="cancel-announcement-form" type="button" hidden>Cancel edit</button></div>
+            </form>
+            <div class="admin-record-list" id="announcement-list" aria-live="polite"><p class="admin-empty">Loading announcements…</p></div>
+          </div>
         </section>
 
         <section class="admin-section" id="requests" aria-labelledby="requests-title">
