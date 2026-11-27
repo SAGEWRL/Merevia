@@ -69,7 +69,7 @@
               <label>Type<select name="kind" required><option value="announcement">Announcement</option><option value="discount">Discount</option><option value="event">Special event</option><option value="occasion">Special occasion</option></select></label>
               <label>Message<textarea name="body" rows="5" maxlength="1000" required></textarea></label>
               <div class="admin-fields-two"><label>Starts<input name="startsOn" type="date"></label><label>Ends<input name="endsOn" type="date"></label></div>
-              <label>Image <span class="admin-hint">JPEG, PNG, or WebP, up to 4 MB</span><input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label>
+              <label>Photo or video <span class="admin-hint">JPEG, PNG, WebP, MP4, or WebM, up to 4 MB</span><input name="image" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"></label>
               <label class="admin-check"><input name="published" type="checkbox"> Publish on the public website</label>
               <div class="admin-form-actions"><button class="admin-button admin-button-primary" type="submit">Save announcement</button><button class="admin-button admin-button-quiet" id="cancel-announcement-form" type="button" hidden>Cancel edit</button></div>
             </form>

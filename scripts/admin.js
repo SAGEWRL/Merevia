@@ -338,12 +338,19 @@ async function loadAnnouncements() {
     head.append(summary, status);
     card.append(head, element('p', 'admin-record-meta', item.body));
     if (item.imageUrl) {
-      const image = document.createElement('img');
-      image.src = item.imageUrl;
-      image.alt = '';
-      image.loading = 'lazy';
-      image.className = 'admin-announcement-image';
-      card.append(image);
+      const isVideo = /\.(mp4|webm|mov)$/i.test(item.imageUrl);
+      const media = isVideo ? document.createElement('video') : document.createElement('img');
+      media.src = item.imageUrl;
+      media.className = 'admin-announcement-media';
+      if (isVideo) {
+        media.controls = true;
+        media.preload = 'metadata';
+        media.playsInline = true;
+      } else {
+        media.alt = '';
+        media.loading = 'lazy';
+      }
+      card.append(media);
     }
     const controls = element('div', 'admin-record-controls');
     const edit = element('button', 'admin-button', 'Edit');

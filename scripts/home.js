@@ -183,11 +183,19 @@ try {
     announcementResult.announcements.forEach((item) => {
       const card = makeElement('article', `announcement-card announcement-${item.kind}`);
       if (item.imageUrl) {
-        const image = document.createElement('img');
-        image.src = item.imageUrl;
-        image.alt = '';
-        image.loading = 'lazy';
-        card.append(image);
+        const isVideo = /\.(mp4|webm|mov)$/i.test(item.imageUrl);
+        const media = isVideo ? document.createElement('video') : document.createElement('img');
+        media.src = item.imageUrl;
+        media.className = 'announcement-media';
+        if (isVideo) {
+          media.controls = true;
+          media.preload = 'metadata';
+          media.playsInline = true;
+        } else {
+          media.alt = '';
+          media.loading = 'lazy';
+        }
+        card.append(media);
       }
       const body = makeElement('div', 'announcement-card-body');
       body.append(makeElement('span', 'announcement-kind', item.kind === 'discount' ? 'Special discount' : item.kind === 'event' ? 'Special event' : item.kind === 'occasion' ? 'Special occasion' : 'Announcement'));
@@ -197,6 +205,15 @@ try {
         const dates = item.startsOn && item.endsOn ? `${item.startsOn} – ${item.endsOn}` : item.startsOn ? `From ${item.startsOn}` : `Until ${item.endsOn}`;
         body.append(makeElement('small', 'announcement-dates', dates));
       }
+      const action = document.createElement('a');
+      action.className = 'announcement-card-action';
+      action.href = '/booking';
+      action.append(document.createTextNode('Enquire or book '));
+      const actionIcon = document.createElement('i');
+      actionIcon.dataset.lucide = 'arrow-up-right';
+      actionIcon.setAttribute('aria-hidden', 'true');
+      action.append(actionIcon);
+      body.append(action);
       card.append(body);
       announcementGrid.append(card);
     });

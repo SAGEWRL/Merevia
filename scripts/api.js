@@ -604,15 +604,15 @@ export function createApiHandler({ database, environment = process.env, uploadDi
 
       let imageUrl = null;
       if (typeof body.imageData === 'string' && body.imageData) {
-        if (body.imageData.length > 6 * 1024 * 1024) throw new ApiError(413, 'announcement_image_too_large', 'The image is too large.');
+        if (body.imageData.length > 6 * 1024 * 1024) throw new ApiError(413, 'announcement_media_too_large', 'The media is too large.');
         const contentType = String(body.imageType || '').split(';')[0].toLowerCase();
         const media = ALLOWED_MEDIA_TYPES.get(contentType);
-        if (!media || !['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
-          throw new ApiError(400, 'invalid_announcement_image', 'Upload a JPEG, PNG, or WebP image no larger than 4 MB.');
+        if (!media || !['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'].includes(contentType)) {
+          throw new ApiError(400, 'invalid_announcement_media', 'Upload a JPEG, PNG, WebP, MP4, or WebM file no larger than 4 MB.');
         }
         const bytes = Buffer.from(body.imageData, 'base64');
         if (!bytes.length || bytes.length > MAX_PROPERTY_PHOTO_BYTES || !media.signature(bytes)) {
-          throw new ApiError(400, 'invalid_announcement_image', 'The uploaded image is invalid or too large.');
+          throw new ApiError(400, 'invalid_announcement_media', 'The uploaded media is invalid or too large.');
         }
         imageUrl = await storePhoto(`${randomUUID()}${media.ext}`, bytes, contentType, filesDirectory, photoStorage);
       }
@@ -641,15 +641,15 @@ export function createApiHandler({ database, environment = process.env, uploadDi
       if (body.startsOn && body.endsOn && body.endsOn < body.startsOn) throw new ApiError(400, 'invalid_announcement_dates', 'The end date must be on or after the start date.');
       let imageUrl = row.image_url;
       if (typeof body.imageData === 'string' && body.imageData) {
-        if (body.imageData.length > 6 * 1024 * 1024) throw new ApiError(413, 'announcement_image_too_large', 'The image is too large.');
+        if (body.imageData.length > 6 * 1024 * 1024) throw new ApiError(413, 'announcement_media_too_large', 'The media is too large.');
         const contentType = String(body.imageType || '').split(';')[0].toLowerCase();
         const media = ALLOWED_MEDIA_TYPES.get(contentType);
-        if (!media || !['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
-          throw new ApiError(400, 'invalid_announcement_image', 'Upload a JPEG, PNG, or WebP image no larger than 4 MB.');
+        if (!media || !['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'].includes(contentType)) {
+          throw new ApiError(400, 'invalid_announcement_media', 'Upload a JPEG, PNG, WebP, MP4, or WebM file no larger than 4 MB.');
         }
         const bytes = Buffer.from(body.imageData, 'base64');
         if (!bytes.length || bytes.length > MAX_PROPERTY_PHOTO_BYTES || !media.signature(bytes)) {
-          throw new ApiError(400, 'invalid_announcement_image', 'The uploaded image is invalid or too large.');
+          throw new ApiError(400, 'invalid_announcement_media', 'The uploaded media is invalid or too large.');
         }
         imageUrl = await storePhoto(`${randomUUID()}${media.ext}`, bytes, contentType, filesDirectory, photoStorage);
         await removeStoredPhoto(row.image_url, filesDirectory, photoStorage);
